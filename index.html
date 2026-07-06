@@ -408,7 +408,7 @@ const STATUS = {
    2. 自行部署（GitHub Pages 等）→ 填入 FIREBASE_PROJECT 即改用 Firestore 雲端資料庫
    3. 兩者皆無 → localStorage（僅存在本機瀏覽器，示範用，不跨裝置共享）*/
 const FIREBASE_PROJECT = 'ang-lab-tracker';   // ← 自行部署時填入 Firebase 專案 ID，例如 'mylab-tracker'
-const LAB_PASSCODE = 'anglab2026';       // ← 僅供本機/Claude 模式的軟比對用。Firebase 模式由 Firestore 規則驗證通行碼，此處請留空，以免公開原始碼洩露真實通行碼
+const LAB_PASSCODE = '';       // ← 僅供本機/Claude 模式的軟比對用。Firebase 模式由 Firestore 規則驗證通行碼，此處請留空，以免公開原始碼洩露真實通行碼
 let GATE = '';                 // 使用者輸入並通過的通行碼，會附在每次寫入資料中
 
 const hasClaudeStore = (typeof window.storage !== 'undefined') && window.storage && window.storage.get;
@@ -844,7 +844,7 @@ $('#addStudentBtn').addEventListener('click', ()=>openStudentModal());
 async function validateGate(code){
   if(FIREBASE_PROJECT){
     try{
-      const res = await fetch(fsUrl('__gate_probe__')+'?updateMask.fieldPaths=value&updateMask.fieldPaths=gate', {
+      const res = await fetch(fsUrl('gate_probe')+'?updateMask.fieldPaths=value&updateMask.fieldPaths=gate', {
         method:'PATCH', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({fields:{value:{stringValue:'probe'}, gate:{stringValue:code}}})
       });
