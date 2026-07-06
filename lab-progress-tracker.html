@@ -1,0 +1,903 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink:#16232b;
+    --ink-soft:#41525c;
+    --bg:#e9edee;
+    --surface:#ffffff;
+    --line:#d5dde0;
+    --line-soft:#e6ecee;
+    --trace:#0e9aa7;      /* oscilloscope teal */
+    --trace-deep:#0a7580;
+    --go:#3b9c6e;         /* on track / done */
+    --warn:#e08a2b;       /* attention / blocked */
+    --danger:#c65a4e;
+    --track-ai:#5b6cff;
+    --track-dsp:#0e9aa7;
+    --track-animal:#c17d3e;
+    --display:'Space Grotesk',system-ui,sans-serif;
+    --body:'Inter',system-ui,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:var(--body);
+    color:var(--ink);
+    background:var(--bg);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit}
+
+  /* ---------- header ---------- */
+  .top{
+    background:var(--ink);
+    color:#eaf1f2;
+    position:relative;
+    overflow:hidden;
+  }
+  .top-wave{position:absolute;inset:0;width:100%;height:100%;opacity:.5}
+  .top-inner{
+    position:relative;
+    max-width:1100px;margin:0 auto;
+    padding:20px 24px 22px;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .brand h1{
+    font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:.3px;margin:0;
+  }
+  .brand .tag{
+    font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+    color:var(--trace);border:1px solid rgba(14,154,167,.5);border-radius:3px;padding:2px 7px;
+  }
+  .who{display:flex;align-items:center;gap:8px}
+  .who label{font-family:var(--mono);font-size:11px;color:#9fb2b8;letter-spacing:.5px}
+  .who select{
+    background:#0e1a20;color:#eaf1f2;border:1px solid #33474f;border-radius:6px;
+    padding:8px 10px;font-size:13px;min-width:150px;
+  }
+  .who button{
+    background:transparent;color:var(--trace);border:1px solid #33474f;border-radius:6px;
+    padding:8px 10px;font-size:12px;
+  }
+  .who button:hover{border-color:var(--trace)}
+
+  /* ---------- tabs ---------- */
+  .tabs{
+    background:var(--surface);border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:5;
+  }
+  .tabs-inner{max-width:1100px;margin:0 auto;padding:0 24px;display:flex;gap:2px;overflow-x:auto}
+  .tab{
+    background:none;border:none;padding:14px 16px;font-size:14px;color:var(--ink-soft);
+    font-weight:500;border-bottom:2px solid transparent;white-space:nowrap;
+  }
+  .tab:hover{color:var(--ink)}
+  .tab.active{color:var(--ink);border-bottom-color:var(--trace);font-weight:600}
+
+  main{max-width:1100px;margin:0 auto;padding:26px 24px 80px}
+
+  /* ---------- generic ---------- */
+  .muted{color:var(--ink-soft)}
+  .empty{
+    border:1px dashed var(--line);border-radius:10px;padding:34px 20px;text-align:center;
+    color:var(--ink-soft);background:var(--surface);
+  }
+  .empty strong{display:block;color:var(--ink);font-family:var(--display);font-size:16px;margin-bottom:6px}
+  .section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .section-head h2{font-family:var(--display);font-weight:600;font-size:19px;margin:0}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--trace-deep);margin-bottom:3px}
+  .btn{
+    background:var(--ink);color:#fff;border:none;border-radius:7px;padding:9px 15px;font-size:13px;font-weight:500;
+  }
+  .btn:hover{background:#0c1a22}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .btn.ghost:hover{border-color:var(--ink-soft)}
+  .btn.sm{padding:6px 11px;font-size:12px}
+
+  /* track chips */
+  .chip{
+    display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11px;
+    padding:3px 8px;border-radius:20px;border:1px solid var(--line);color:var(--ink-soft);
+  }
+  .chip .dot{width:7px;height:7px;border-radius:50%}
+  .chip.ai .dot{background:var(--track-ai)} .chip.dsp .dot{background:var(--track-dsp)} .chip.animal .dot{background:var(--track-animal)}
+
+  /* ---------- checklist ---------- */
+  .cl-head{
+    display:flex;gap:22px;align-items:center;background:var(--surface);border:1px solid var(--line);
+    border-radius:12px;padding:18px 22px;margin-bottom:22px;flex-wrap:wrap;
+  }
+  .cl-id h3{font-family:var(--display);font-size:18px;margin:0 0 4px}
+  .cl-id .sub{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  .cl-id .tracks{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+  .gauges{display:flex;gap:18px;margin-left:auto;flex-wrap:wrap}
+  .gauge{text-align:center;width:78px}
+  .gauge svg{display:block;margin:0 auto}
+  .gauge .lab{font-family:var(--mono);font-size:10px;letter-spacing:.5px;color:var(--ink-soft);margin-top:4px;text-transform:uppercase}
+  .gauge .pct{font-family:var(--display);font-weight:600;font-size:15px}
+
+  .dim{margin-bottom:20px}
+  .dim-title{
+    display:flex;align-items:center;gap:9px;font-family:var(--display);font-weight:600;font-size:14px;
+    margin:0 0 10px;color:var(--ink);
+  }
+  .dim-title .bar{width:3px;height:15px;border-radius:2px;background:var(--trace)}
+  .dim-title .n{font-family:var(--mono);font-size:11px;color:var(--ink-soft);font-weight:400}
+  .item{
+    display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);
+    border-radius:9px;padding:12px 14px;margin-bottom:7px;cursor:pointer;transition:border-color .12s;
+  }
+  .item:hover{border-color:var(--trace)}
+  .item.done{background:#f4faf7;border-color:#cfe8dc}
+  .box{
+    width:20px;height:20px;border-radius:5px;border:2px solid var(--line);flex:none;margin-top:1px;
+    display:flex;align-items:center;justify-content:center;transition:.12s;
+  }
+  .item.done .box{background:var(--go);border-color:var(--go)}
+  .box svg{opacity:0}
+  .item.done .box svg{opacity:1}
+  .item .txt{font-size:14px}
+  .item.done .txt{color:var(--ink-soft);text-decoration:line-through;text-decoration-color:#bcd9cb}
+  .item .tmark{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:12px;margin-left:8px;vertical-align:middle;border:1px solid var(--line);color:var(--ink-soft)}
+  .item-del{margin-left:auto;background:none;border:none;color:var(--ink-soft);font-size:17px;line-height:1;padding:0 4px;flex:none;align-self:center}
+  .item-del:hover{color:var(--danger)}
+
+  /* ---------- projects ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 17px;position:relative}
+  .card h3{font-family:var(--display);font-size:16px;margin:0 4px 10px 0;padding-right:60px}
+  .card .owner{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:12px}
+  .status{
+    position:absolute;top:15px;right:15px;font-family:var(--mono);font-size:10px;letter-spacing:.5px;
+    padding:3px 8px;border-radius:20px;text-transform:uppercase;font-weight:500;
+  }
+  .st-todo{background:#eef1f2;color:#5b6b72}
+  .st-active{background:#e5f5ef;color:#2f7d58}
+  .st-blocked{background:#fbeee0;color:#b5711f}
+  .st-review{background:#eae6fb;color:#5a4bb5}
+  .st-done{background:#e7f0f2;color:var(--trace-deep)}
+  .stage-rail{display:flex;gap:4px;margin:12px 0}
+  .stage-rail .seg{flex:1;height:5px;border-radius:3px;background:var(--line-soft)}
+  .stage-rail .seg.on{background:var(--trace)}
+  .stage-lab{font-family:var(--mono);font-size:11px;color:var(--trace-deep);margin-bottom:12px}
+  .kv{font-size:13px;margin:6px 0;color:var(--ink-soft)}
+  .kv b{color:var(--ink);font-weight:600}
+  .blockbox{background:#fdf5ec;border:1px solid #f2ddc2;border-radius:7px;padding:8px 10px;font-size:12.5px;color:#8a5a17;margin-top:10px}
+  .links{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+  .links a{
+    font-family:var(--mono);font-size:11px;color:var(--trace-deep);text-decoration:none;
+    border:1px solid var(--line);border-radius:6px;padding:3px 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .links a:hover{border-color:var(--trace);background:#f0fafb}
+  .card-actions{display:flex;gap:8px;margin-top:13px;border-top:1px solid var(--line-soft);padding-top:11px}
+  .card-actions button{background:none;border:none;font-size:12px;color:var(--ink-soft);padding:2px 4px}
+  .card-actions button:hover{color:var(--ink)}
+  .card-actions .del:hover{color:var(--danger)}
+
+  /* ---------- log timeline ---------- */
+  .log{position:relative;padding-left:22px;margin-bottom:16px}
+  .log::before{content:"";position:absolute;left:5px;top:6px;bottom:-16px;width:2px;background:var(--line)}
+  .log:last-child::before{display:none}
+  .log .node{position:absolute;left:0;top:5px;width:12px;height:12px;border-radius:50%;background:var(--trace);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+  .log .date{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:2px}
+  .log .who-tag{font-family:var(--display);font-weight:600;font-size:13px;margin-bottom:8px}
+  .log-row{font-size:13px;margin:4px 0;display:flex;gap:8px}
+  .log-row .k{font-family:var(--mono);font-size:10px;letter-spacing:.5px;color:#fff;padding:1px 6px;border-radius:4px;flex:none;height:fit-content;margin-top:2px}
+  .k-done{background:var(--go)} .k-block{background:var(--warn)} .k-next{background:var(--trace-deep)}
+
+  /* ---------- overview table ---------- */
+  .ov-wrap{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:12px 14px;font-size:13px;border-bottom:1px solid var(--line-soft)}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-soft);background:#f6f8f8}
+  tr:last-child td{border-bottom:none}
+  .mini-bar{height:6px;border-radius:3px;background:var(--line-soft);width:90px;overflow:hidden;display:inline-block;vertical-align:middle}
+  .mini-bar span{display:block;height:100%;background:var(--go)}
+  .flag{font-family:var(--mono);font-size:11px;color:var(--warn)}
+  .row-name{font-weight:600;font-family:var(--display)}
+  .row-name small{display:block;font-family:var(--mono);font-weight:400;font-size:10px;color:var(--ink-soft)}
+
+  /* ---------- modal ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(16,26,32,.5);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:20;overflow:auto}
+  .modal{background:var(--surface);border-radius:14px;width:100%;max-width:460px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.28)}
+  .modal h3{font-family:var(--display);font-size:18px;margin:0 0 18px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:5px}
+  .field input,.field select,.field textarea{
+    width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;color:var(--ink);background:#fff;
+  }
+  .field textarea{resize:vertical;min-height:56px}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--trace);box-shadow:0 0 0 3px rgba(14,154,167,.13)}
+  .track-pick{display:flex;gap:8px;flex-wrap:wrap}
+  .track-pick .opt{border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:6px}
+  .track-pick .opt.on{border-color:var(--trace);background:#f0fafb;color:var(--trace-deep);font-weight:500}
+  .modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:20px}
+  .hint{font-size:12px;color:var(--ink-soft);margin-top:4px}
+
+  @media (max-width:620px){
+    .gauges{margin-left:0;width:100%}
+    .cl-head{padding:16px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .top-wave{animation:none!important}
+  }
+
+  /* ---------- passcode gate ---------- */
+  .gate{position:fixed;inset:0;background:var(--ink);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .gate-card{background:var(--surface);border-radius:16px;padding:36px 32px;max-width:390px;width:100%;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+  .gate-card .lock{width:44px;height:44px;border-radius:12px;background:#f0fafb;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+  .gate-card h2{font-family:var(--display);font-size:22px;margin:0 0 6px;color:var(--ink)}
+  .gate-card p{color:var(--ink-soft);font-size:13px;margin:0 0 20px;line-height:1.5}
+  .gate-card input{width:100%;border:1px solid var(--line);border-radius:9px;padding:12px 14px;font-size:17px;text-align:center;letter-spacing:3px;color:var(--ink)}
+  .gate-card input:focus{outline:none;border-color:var(--trace);box-shadow:0 0 0 3px rgba(14,154,167,.15)}
+  .gate-card button{width:100%;margin-top:14px;background:var(--ink);color:#fff;border:none;border-radius:9px;padding:12px;font-size:15px;font-weight:500;cursor:pointer}
+  .gate-card button:hover{background:#0c1a22}
+  .gate-card button:disabled{opacity:.5;cursor:default}
+  .gate-err{color:var(--danger);font-size:13px;margin-top:12px;min-height:18px}
+</style>
+
+<div class="top">
+  <svg class="top-wave" id="wave" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
+    <path id="wavePath" fill="none" stroke="var(--trace)" stroke-width="1.4" opacity="0.8"></path>
+  </svg>
+  <div class="top-inner">
+    <div class="brand">
+      <h1 id="labName">研究室進度儀表板</h1>
+      <span class="tag">Lab Signal</span>
+    </div>
+    <div class="who">
+      <label>目前身分</label>
+      <select id="whoSelect"></select>
+      <button id="addStudentBtn">＋ 新增學生</button>
+    </div>
+  </div>
+</div>
+
+<nav class="tabs">
+  <div class="tabs-inner" id="tabs">
+    <button class="tab active" data-view="checklist">我的檢核</button>
+    <button class="tab" data-view="projects">我的專案</button>
+    <button class="tab" data-view="log">週報進度</button>
+    <button class="tab" data-view="overview">全實驗室總覽</button>
+  </div>
+</nav>
+
+<main id="main"></main>
+
+<div id="modalRoot"></div>
+
+<script>
+/* ============================================================
+   實驗室進度儀表板 —  資料以 window.storage 持久化
+   共享資料 (shared=true)：所有開啟此網頁的人看到同一份
+   個人資料 (shared=false)：只記住這台裝置選了誰
+   ============================================================ */
+
+const TRACKS = {
+  ai:     {label:'AI 開發',   short:'AI'},
+  dsp:    {label:'訊號處理',  short:'DSP'},
+  animal: {label:'動物飼養',  short:'動物'},
+};
+
+const LEVELS = {
+  undergrad:{label:'大學部', tiers:['U1','U2','U3']},
+  master:   {label:'碩士',   tiers:['G1','G2','G3','G4']},
+  phd:      {label:'博士',   tiers:['D1','D2','D3']},
+};
+
+const TIER_META = {
+  U1:{name:'入門期', yr:'第 1 學期 · 0–4 月'},
+  U2:{name:'上手期', yr:'第 2–3 學期 · 4–12 月'},
+  U3:{name:'專題期', yr:'12 月以上 / 專題結案前'},
+  G1:{name:'定位期', yr:'碩一上'},
+  G2:{name:'建置期', yr:'碩一下'},
+  G3:{name:'產出期', yr:'碩二上'},
+  G4:{name:'收束期', yr:'碩二下'},
+  D1:{name:'探索期', yr:'博一–博二'},
+  D2:{name:'深化期', yr:'博三'},
+  D3:{name:'領導期', yr:'資深博生'},
+};
+
+const DIMS = {skill:'研究技能', project:'專案進度', citizen:'實驗室成員'};
+
+/* 檢核項：dim=維度；track 若存在則僅該領域學生顯示 */
+const CHECKS = {
+  U1:[
+    {id:'u1-safe', dim:'citizen', t:'完成實驗室安全與環境訓練'},
+    {id:'u1-note', dim:'citizen', t:'建立實驗記錄本／開發日誌，每次都記錄'},
+    {id:'u1-read', dim:'skill',   t:'讀懂 1 篇指定文獻並口頭摘要'},
+    {id:'u1-goal', dim:'project', t:'能說明所屬專案的目標與動機'},
+    {id:'u1-ai',   dim:'skill', track:'ai',     t:'完成 Python 環境建置，跑通一份範例訓練程式'},
+    {id:'u1-dsp',  dim:'skill', track:'dsp',    t:'完成訊號擷取環境建置，讀入並畫出一段訊號'},
+    {id:'u1-an',   dim:'skill', track:'animal', t:'完成動物實驗倫理(IACUC)訓練，熟讀飼養 SOP'},
+  ],
+  U2:[
+    {id:'u2-repro', dim:'skill',   t:'能獨立完成核心技術並產出可重現數據'},
+    {id:'u2-kb',    dim:'skill',   t:'會使用實驗室文獻／知識庫查資料'},
+    {id:'u2-sub',   dim:'project', t:'負責專案中一個明確子任務'},
+    {id:'u2-week',  dim:'citizen', t:'主動回報卡關，週報準時'},
+    {id:'u2-ai',    dim:'skill', track:'ai',     t:'獨立完成一輪資料前處理→訓練→評估，並用 git 管理程式'},
+    {id:'u2-dsp',   dim:'skill', track:'dsp',    t:'實作一種濾波／特徵抽取並驗證結果'},
+    {id:'u2-an',    dim:'skill', track:'animal', t:'獨立執行飼養與基本取樣／量測，符合動物福祉規範'},
+  ],
+  U3:[
+    {id:'u3-lit',  dim:'skill',   t:'能做小範圍文獻回顧(3–5 篇)'},
+    {id:'u3-stat', dim:'skill',   t:'能對自己數據做基本統計與判讀'},
+    {id:'u3-own',  dim:'project', t:'獨立負責一個小子題並整理成果'},
+    {id:'u3-rep',  dim:'project', t:'完成專題書面報告與海報／口頭報告'},
+    {id:'u3-hand', dim:'citizen', t:'記錄本／程式可供後人接手'},
+    {id:'u3-ai',   dim:'skill', track:'ai',     t:'模型結果可重現(固定隨機種子、記錄超參數與版本)'},
+    {id:'u3-dsp',  dim:'skill', track:'dsp',    t:'能對訊號處理流程做量化評估(如 SNR／準確率)'},
+    {id:'u3-an',   dim:'skill', track:'animal', t:'能獨立完成一次完整實驗流程並記錄異常處理'},
+  ],
+  G1:[
+    {id:'g1-lit',  dim:'skill',   t:'完成題目文獻回顧，能畫出研究缺口'},
+    {id:'g1-core', dim:'skill',   t:'掌握所屬領域全部核心技術'},
+    {id:'g1-prop', dim:'project', t:'完成背景綜整草稿與 proposal 雛形'},
+    {id:'g1-norm', dim:'citizen', t:'數據／程式命名與版本符合實驗室規範'},
+    {id:'g1-ai',   dim:'skill', track:'ai',     t:'建立可重現的訓練 pipeline(資料版本、實驗追蹤)'},
+    {id:'g1-dsp',  dim:'skill', track:'dsp',    t:'能設計完整訊號處理流程並說明每一步依據'},
+    {id:'g1-an',   dim:'skill', track:'animal', t:'能規劃動物實驗分組與樣本數(含倫理考量)'},
+  ],
+  G2:[
+    {id:'g2-ctrl', dim:'skill',   t:'能設計對照組、辨識與控制變因'},
+    {id:'g2-stat', dim:'skill',   t:'會做基礎統計檢定'},
+    {id:'g2-sys',  dim:'project', t:'proposal 定稿；建立實驗／開發系統'},
+    {id:'g2-pilot',dim:'project', t:'產出初步或預試數據'},
+    {id:'g2-ment', dim:'citizen', t:'開始帶 1 位大學部'},
+    {id:'g2-ai',   dim:'skill', track:'ai',     t:'完成 baseline 模型並有可比較的評估指標'},
+    {id:'g2-dsp',  dim:'skill', track:'dsp',    t:'完成訊號採集到分析的端到端 prototype'},
+    {id:'g2-an',   dim:'skill', track:'animal', t:'完成預試(pilot)並依結果調整方案'},
+  ],
+  G3:[
+    {id:'g3-disc', dim:'skill',   t:'能將結果與文獻對照、寫出 discussion 論點'},
+    {id:'g3-main', dim:'project', t:'主要結果產出'},
+    {id:'g3-conf', dim:'project', t:'完成期中報告；投研討會摘要或海報'},
+    {id:'g3-lead', dim:'citizen', t:'組會能主持自己題目的討論'},
+    {id:'g3-ai',   dim:'skill', track:'ai',     t:'完成消融／比較實驗，結果具統計意義'},
+    {id:'g3-dsp',  dim:'skill', track:'dsp',    t:'演算法在真實資料上驗證並量化效能'},
+    {id:'g3-an',   dim:'skill', track:'animal', t:'完成正式實驗批次，數據品質達可分析標準'},
+  ],
+  G4:[
+    {id:'g4-write',dim:'skill',   t:'能獨立完成論文各章'},
+    {id:'g4-resp', dim:'skill',   t:'能回應審查／口委意見'},
+    {id:'g4-oral', dim:'project', t:'論文撰寫與口試'},
+    {id:'g4-pub',  dim:'project', t:'投稿論文／專利／委託案結案'},
+    {id:'g4-hand', dim:'citizen', t:'完整交接(記錄、原始數據、SOP)給接手者'},
+  ],
+  D1:[
+    {id:'d1-hyp',  dim:'skill',   t:'能自行提出研究方向與假說'},
+    {id:'d1-plan', dim:'skill',   t:'獨立完成完整文獻回顧與研究計畫書片段'},
+    {id:'d1-axis', dim:'project', t:'確立博士論文主軸與第一個子計畫'},
+    {id:'d1-ment', dim:'citizen', t:'穩定指導碩士／大學部日常研究'},
+  ],
+  D2:[
+    {id:'d2-strat',dim:'skill',   t:'能設計一整套實驗／開發策略'},
+    {id:'d2-first',dim:'project', t:'產出第一作者論文'},
+    {id:'d2-cli',  dim:'project', t:'主導一個委託案'},
+    {id:'d2-own',  dim:'citizen', t:'成為某項技術的實驗室內部負責人'},
+  ],
+  D3:[
+    {id:'d3-rev',  dim:'skill',   t:'能協助審稿或撰寫計畫書'},
+    {id:'d3-2nd',  dim:'project', t:'第二篇第一作者論文／重要成果'},
+    {id:'d3-sop',  dim:'citizen', t:'建立或維護實驗室某項 SOP 與訓練新人'},
+  ],
+};
+
+const STAGES = ['文獻','背景','方法','實驗設計','結果討論'];
+const STATUS = {
+  todo:{label:'未開始', cls:'st-todo'},
+  active:{label:'進行中', cls:'st-active'},
+  blocked:{label:'卡關', cls:'st-blocked'},
+  review:{label:'待審', cls:'st-review'},
+  done:{label:'完成', cls:'st-done'},
+};
+
+/* ---------------- storage adapter ----------------
+   三種後端自動切換：
+   1. 在 Claude 平台開啟 → 使用內建 window.storage（全體共享）
+   2. 自行部署（GitHub Pages 等）→ 填入 FIREBASE_PROJECT 即改用 Firestore 雲端資料庫
+   3. 兩者皆無 → localStorage（僅存在本機瀏覽器，示範用，不跨裝置共享）*/
+const FIREBASE_PROJECT = '';   // ← 自行部署時填入 Firebase 專案 ID，例如 'mylab-tracker'
+const LAB_PASSCODE = '';       // ← 等級二通行碼。填入後進入網頁需輸入此碼；留空＝不啟用閘門
+let GATE = '';                 // 使用者輸入並通過的通行碼，會附在每次寫入資料中
+
+const hasClaudeStore = (typeof window.storage !== 'undefined') && window.storage && window.storage.get;
+const fsUrl = key => 'https://firestore.googleapis.com/v1/projects/'+FIREBASE_PROJECT
+  +'/databases/(default)/documents/labkv/'+encodeURIComponent(key);
+
+async function loadKey(key, shared, fallback){
+  try{
+    if(hasClaudeStore){
+      const r = await window.storage.get(key, shared);
+      return r && r.value ? JSON.parse(r.value) : fallback;
+    }
+    if(FIREBASE_PROJECT){
+      const res = await fetch(fsUrl(key));
+      if(!res.ok) return fallback;
+      const d = await res.json();
+      const v = d.fields && d.fields.value && d.fields.value.stringValue;
+      return v ? JSON.parse(v) : fallback;
+    }
+    const v = localStorage.getItem('lab:'+key);
+    return v ? JSON.parse(v) : fallback;
+  }catch(e){ return fallback; }
+}
+async function saveKey(key, val, shared){
+  try{
+    const json = JSON.stringify(val);
+    if(hasClaudeStore){ await window.storage.set(key, json, shared); return; }
+    if(FIREBASE_PROJECT){
+      await fetch(fsUrl(key)+'?updateMask.fieldPaths=value&updateMask.fieldPaths=gate', {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({fields:{value:{stringValue:json}, gate:{stringValue:GATE}}})
+      });
+      return;
+    }
+    localStorage.setItem('lab:'+key, json);
+  }catch(e){ console.error('save failed', key, e); }
+}
+
+const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, me:null, view:'checklist' };
+
+async function boot(){
+  S.students   = await loadKey('lab_students', true, []);
+  S.checklists = await loadKey('lab_checklists', true, {});
+  S.projects   = await loadKey('lab_projects', true, []);
+  S.logs       = await loadKey('lab_logs', true, []);
+  S.custom     = await loadKey('lab_custom_checks', true, {});
+  S.me         = await loadKey('lab_me', false, null);
+  if(S.me && !S.students.find(s=>s.id===S.me)) S.me = null;
+  renderWho(); render();
+}
+
+/* ---------------- helpers ---------------- */
+const $ = sel => document.querySelector(sel);
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc = s => (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const me = () => S.students.find(s=>s.id===S.me) || null;
+const today = () => new Date().toISOString().slice(0,10);
+
+function visibleChecks(student){
+  const items = (CHECKS[student.tier] || []).filter(it => !it.track || student.tracks.includes(it.track));
+  const extra = (S.custom[student.id] || []).map(c => ({...c, custom:true}));
+  return items.concat(extra);
+}
+function checkState(sid){ return S.checklists[sid] || {}; }
+function progress(student){
+  const items = visibleChecks(student), st = checkState(student.id);
+  const by = {skill:[0,0], project:[0,0], citizen:[0,0], all:[0,0]};
+  items.forEach(it=>{ const done = !!st[it.id];
+    by[it.dim][1]++; by.all[1]++; if(done){by[it.dim][0]++; by.all[0]++;} });
+  return by;
+}
+function pct(pair){ return pair[1] ? Math.round(pair[0]/pair[1]*100) : 0; }
+
+/* ---------------- header waveform (signature) ---------------- */
+function animateWave(){
+  const path = $('#wavePath'); if(!path) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const W=1200, H=120, mid=H/2;
+  function build(t){
+    let d='M 0 '+mid;
+    for(let x=0;x<=W;x+=8){
+      const y = mid
+        + Math.sin((x*0.012)+t)*16
+        + Math.sin((x*0.03)+t*1.7)*8
+        + Math.sin((x*0.005)-t*0.6)*10;
+      d += ' L '+x+' '+y.toFixed(1);
+    }
+    path.setAttribute('d', d);
+  }
+  if(reduce){ build(0); return; }
+  let t=0; (function loop(){ t+=0.03; build(t); requestAnimationFrame(loop); })();
+}
+
+/* ---------------- identity selector ---------------- */
+function renderWho(){
+  const sel = $('#whoSelect');
+  const opts = ['<option value="">— 請選擇 —</option>',
+    '<option value="__pi__"'+(S.me==='__pi__'?' selected':'')+'>👤 老師（總覽模式）</option>'];
+  S.students.forEach(s=>{
+    opts.push('<option value="'+s.id+'"'+(S.me===s.id?' selected':'')+'>'
+      + esc(s.name)+'（'+s.tier+'）</option>');
+  });
+  sel.innerHTML = opts.join('');
+}
+
+/* ---------------- main render ---------------- */
+function render(){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.view===S.view));
+  const main = $('#main');
+  if(S.view==='overview'){ main.innerHTML = viewOverview(); bindOverview(); return; }
+  if(S.me==='__pi__'){ // PI on a personal tab → nudge to overview
+    main.innerHTML = '<div class="empty"><strong>老師模式</strong>請切換到「全實驗室總覽」查看所有學生進度，或在上方身分選單改選一位學生。</div>';
+    return;
+  }
+  if(!me()){
+    main.innerHTML = '<div class="empty"><strong>先選擇你的身分</strong>在右上角選單挑選你的名字。第一次使用請按「＋ 新增學生」建立資料。</div>';
+    return;
+  }
+  if(S.view==='checklist'){ main.innerHTML = viewChecklist(); bindChecklist(); }
+  else if(S.view==='projects'){ main.innerHTML = viewProjects(); bindProjects(); }
+  else if(S.view==='log'){ main.innerHTML = viewLog(); bindLog(); }
+}
+
+/* ---------- checklist view ---------- */
+function ring(p, color){
+  const r=22, c=2*Math.PI*r, off=c*(1-p/100);
+  return '<svg width="56" height="56" viewBox="0 0 56 56">'
+    +'<circle cx="28" cy="28" r="'+r+'" fill="none" stroke="var(--line-soft)" stroke-width="6"/>'
+    +'<circle cx="28" cy="28" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="6" stroke-linecap="round" '
+    +'stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 28 28)"/>'
+    +'<text x="28" y="33" text-anchor="middle" class="pct" fill="var(--ink)">'+p+'</text></svg>';
+}
+function viewChecklist(){
+  const s = me(), by = progress(s), tm = TIER_META[s.tier];
+  const trackChips = s.tracks.map(t=>'<span class="chip '+t+'"><span class="dot"></span>'+TRACKS[t].label+'</span>').join('');
+  let head = '<div class="cl-head"><div class="cl-id">'
+    + '<h3>'+esc(s.name)+'</h3>'
+    + '<div class="sub">'+LEVELS[s.level].label+' · '+s.tier+' '+tm.name+' · '+tm.yr+'</div>'
+    + '<div class="tracks">'+trackChips+'</div></div>'
+    + '<div class="gauges">'
+    + '<div class="gauge">'+ring(pct(by.all),'var(--trace)')+'<div class="lab">總達成</div></div>'
+    + '<div class="gauge">'+ring(pct(by.skill),'var(--track-ai)')+'<div class="lab">研究技能</div></div>'
+    + '<div class="gauge">'+ring(pct(by.project),'var(--go)')+'<div class="lab">專案進度</div></div>'
+    + '<div class="gauge">'+ring(pct(by.citizen),'var(--track-animal)')+'<div class="lab">實驗室成員</div></div>'
+    + '</div></div>';
+
+  const st = checkState(s.id);
+  let body='';
+  Object.keys(DIMS).forEach(dim=>{
+    const items = visibleChecks(s).filter(i=>i.dim===dim);
+    if(!items.length) return;
+    const doneN = items.filter(i=>st[i.id]).length;
+    body += '<div class="dim"><div class="dim-title"><span class="bar"></span>'+DIMS[dim]
+      +' <span class="n">'+doneN+'/'+items.length+'</span></div>';
+    items.forEach(it=>{
+      const done = !!st[it.id];
+      const tk = it.track ? '<span class="tmark">'+TRACKS[it.track].short+'</span>' : '';
+      const cm = it.custom ? '<span class="tmark">自訂</span>' : '';
+      const del = it.custom ? '<button class="item-del" data-cdel="'+it.id+'" title="刪除此自訂項">×</button>' : '';
+      body += '<div class="item'+(done?' done':'')+'" data-id="'+it.id+'">'
+        + '<div class="box"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'
+        + '<div class="txt">'+esc(it.t)+tk+cm+'</div>'+del+'</div>';
+    });
+    body += '</div>';
+  });
+
+  const overall = pct(by.all);
+  const note = overall>=80
+    ? '<div class="blockbox" style="background:#eef7f1;border-color:#cfe8dc;color:#2f7d58">已達 '+overall+'%，達到升級門檻（≥80%）。可在學期評核與老師確認升級。</div>'
+    : '<div class="hint" style="margin-top:16px">升級門檻為單一年資檢核項達成 ≥ 80%，並於學期評核由老師確認。目前 '+overall+'%。</div>';
+
+  return '<div class="section-head"><div><div class="eyebrow">Growth Checklist</div>'
+    + '<h2>我的檢核項</h2></div><div style="display:flex;gap:8px;flex-wrap:wrap">'
+    + '<button class="btn sm" id="addCheck">＋ 新增檢核項</button>'
+    + '<button class="btn ghost sm" id="editMe">編輯年資／領域</button></div></div>'
+    + head + body + note;
+}
+function bindChecklist(){
+  document.querySelectorAll('[data-cdel]').forEach(b=>b.addEventListener('click', e=>{
+    e.stopPropagation();
+    const s = me();
+    if(confirm('刪除這個自訂檢核項？')){
+      S.custom[s.id] = (S.custom[s.id]||[]).filter(c=>c.id!==b.dataset.cdel);
+      if(S.checklists[s.id]) delete S.checklists[s.id][b.dataset.cdel];
+      saveKey('lab_custom_checks', S.custom, true);
+      saveKey('lab_checklists', S.checklists, true);
+      render();
+    }
+  }));
+  document.querySelectorAll('.item').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const id = el.dataset.id, s = me();
+      if(!S.checklists[s.id]) S.checklists[s.id]={};
+      S.checklists[s.id][id] = !S.checklists[s.id][id];
+      saveKey('lab_checklists', S.checklists, true);
+      render();
+    });
+  });
+  const em = $('#editMe'); if(em) em.addEventListener('click', ()=>openStudentModal(me()));
+  const ac = $('#addCheck'); if(ac) ac.addEventListener('click', openCheckModal);
+}
+
+function openCheckModal(){
+  const dimOpts = Object.keys(DIMS).map(k=>'<option value="'+k+'">'+DIMS[k]+'</option>').join('');
+  $('#modalRoot').innerHTML =
+    '<div class="scrim" id="scrim"><div class="modal">'
+    + '<h3>新增自訂檢核項</h3>'
+    + '<div class="field"><label>維度</label><select id="ckDim">'+dimOpts+'</select></div>'
+    + '<div class="field"><label>檢核內容</label><textarea id="ckText" placeholder="例：完成 XX 儀器操作認證／完成專題調整後的新目標"></textarea>'
+    + '<div class="hint">自訂項只出現在你自己的檢核清單，並計入達成率；之後可用項目右側 × 刪除。</div></div>'
+    + '<div class="modal-actions"><button class="btn ghost" id="ckCancel">取消</button>'
+    + '<button class="btn" id="ckSave">新增</button></div></div></div>';
+  $('#scrim').addEventListener('click', e=>{ if(e.target.id==='scrim') closeModal(); });
+  $('#ckCancel').addEventListener('click', closeModal);
+  $('#ckSave').addEventListener('click', ()=>{
+    const t = $('#ckText').value.trim();
+    if(!t){ alert('請輸入檢核內容'); return; }
+    const s = me();
+    if(!S.custom[s.id]) S.custom[s.id]=[];
+    S.custom[s.id].push({id:'c-'+uid(), dim:$('#ckDim').value, t});
+    saveKey('lab_custom_checks', S.custom, true);
+    closeModal(); render();
+  });
+}
+
+/* ---------- projects view ---------- */
+function viewProjects(){
+  const mine = S.projects.filter(p=>p.owner===S.me);
+  let cards = mine.map(projectCard).join('');
+  if(!mine.length) cards = '<div class="empty"><strong>還沒有專案</strong>按右上角新增你負責的專案，追蹤它跑到研究管線哪一站。</div>';
+  return '<div class="section-head"><div><div class="eyebrow">Project Board</div>'
+    + '<h2>我的專案</h2></div><button class="btn" id="addProj">＋ 新增專案</button></div>'
+    + '<div class="grid">'+cards+'</div>';
+}
+function projectCard(p){
+  const stg = STAGES.indexOf(p.stage); const stt = STATUS[p.status]||STATUS.todo;
+  const rail = STAGES.map((s,i)=>'<div class="seg'+(i<=stg?' on':'')+'"></div>').join('');
+  const links = (p.links||[]).map(l=>'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">🔗 '+esc(l.name||l.url)+'</a>').join('');
+  return '<div class="card">'
+    + '<span class="status '+stt.cls+'">'+stt.label+'</span>'
+    + '<h3>'+esc(p.name)+'</h3>'
+    + '<div class="stage-rail">'+rail+'</div>'
+    + '<div class="stage-lab">管線站點：'+esc(p.stage)+'</div>'
+    + (p.milestone?'<div class="kv"><b>里程碑：</b>'+esc(p.milestone)+'</div>':'')
+    + (p.deadline?'<div class="kv"><b>期限：</b>'+esc(p.deadline)+'</div>':'')
+    + (p.blocker?'<div class="blockbox">⚠ 卡點：'+esc(p.blocker)+'</div>':'')
+    + (links?'<div class="links">'+links+'</div>':'')
+    + '<div class="card-actions"><button data-edit="'+p.id+'">編輯</button>'
+    + '<button class="del" data-del="'+p.id+'">刪除</button></div></div>';
+}
+function bindProjects(){
+  const a=$('#addProj'); if(a) a.addEventListener('click',()=>openProjectModal());
+  document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{
+    openProjectModal(S.projects.find(p=>p.id===b.dataset.edit));
+  }));
+  document.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+    if(confirm('刪除這個專案？')){
+      S.projects = S.projects.filter(p=>p.id!==b.dataset.del);
+      saveKey('lab_projects', S.projects, true); render();
+    }
+  }));
+}
+
+/* ---------- weekly log view ---------- */
+function viewLog(){
+  const mine = S.logs.filter(l=>l.owner===S.me).sort((a,b)=>b.date.localeCompare(a.date));
+  const form = '<div class="card" style="margin-bottom:20px">'
+    + '<div class="field"><label>週報日期</label><input type="date" id="lgDate" value="'+today()+'"></div>'
+    + '<div class="field"><label>這週完成了什麼</label><textarea id="lgDone" placeholder="例：完成濾波前處理，跑通 baseline 模型…"></textarea></div>'
+    + '<div class="field"><label>卡在哪裡</label><textarea id="lgBlock" placeholder="例：動物取樣時程與器材衝突…（沒有可留空）"></textarea></div>'
+    + '<div class="field"><label>下週要做什麼</label><textarea id="lgNext" placeholder="例：加入資料擴增、重跑實驗…"></textarea></div>'
+    + '<div class="field"><label>進度連結（貼 Drive／GitHub／Notebook 網址，可留空）</label><input id="lgLink" placeholder="https://…"></div>'
+    + '<div style="text-align:right"><button class="btn" id="lgSubmit">送出週報</button></div></div>';
+
+  let timeline = mine.map(l=>{
+    const link = l.link ? '<div class="log-row"><span class="k k-next">連結</span><a href="'+esc(l.link)+'" target="_blank" rel="noopener" style="font-family:var(--mono);font-size:12px;color:var(--trace-deep)">'+esc(l.link)+'</a></div>' : '';
+    return '<div class="log"><div class="node"></div>'
+      + '<div class="date">'+esc(l.date)+'</div>'
+      + (l.done?'<div class="log-row"><span class="k k-done">完成</span><span>'+esc(l.done)+'</span></div>':'')
+      + (l.block?'<div class="log-row"><span class="k k-block">卡關</span><span>'+esc(l.block)+'</span></div>':'')
+      + (l.next?'<div class="log-row"><span class="k k-next">下週</span><span>'+esc(l.next)+'</span></div>':'')
+      + link + '</div>';
+  }).join('');
+  if(!mine.length) timeline = '<div class="empty"><strong>還沒有週報</strong>用上面的表單送出第一則，進度會自動存下並排成時間軸。</div>';
+
+  return '<div class="section-head"><div><div class="eyebrow">Weekly Update</div>'
+    + '<h2>週報進度</h2></div></div>'+form+timeline;
+}
+function bindLog(){
+  const b=$('#lgSubmit'); if(!b) return;
+  b.addEventListener('click',()=>{
+    const done=$('#lgDone').value.trim(), block=$('#lgBlock').value.trim(),
+          next=$('#lgNext').value.trim(), link=$('#lgLink').value.trim(), date=$('#lgDate').value||today();
+    if(!done && !block && !next){ alert('至少填一欄再送出。'); return; }
+    S.logs.push({id:uid(), owner:S.me, date, done, block, next, link});
+    saveKey('lab_logs', S.logs, true); render();
+  });
+}
+
+/* ---------- overview view ---------- */
+function viewOverview(){
+  if(!S.students.length)
+    return '<div class="empty"><strong>還沒有學生資料</strong>請學生在右上角「＋ 新增學生」建立自己的檔案。</div>';
+  const rows = S.students.map(s=>{
+    const p = pct(progress(s).all);
+    const projs = S.projects.filter(x=>x.owner===s.id);
+    const blocked = projs.filter(x=>x.status==='blocked').length;
+    const lastLog = S.logs.filter(l=>l.owner===s.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const stale = lastLog ? (Date.now()-new Date(lastLog.date).getTime())/864e5 : 999;
+    const tm = TIER_META[s.tier];
+    const trackChips = s.tracks.map(t=>'<span class="chip '+t+'"><span class="dot"></span>'+TRACKS[t].short+'</span>').join(' ');
+    return '<tr>'
+      + '<td><span class="row-name">'+esc(s.name)+'<small>'+LEVELS[s.level].label+' · '+s.tier+' '+tm.name+'</small></span></td>'
+      + '<td>'+trackChips+'</td>'
+      + '<td><span class="mini-bar"><span style="width:'+p+'%"></span></span> <span style="font-family:var(--mono);font-size:12px">'+p+'%</span></td>'
+      + '<td>'+projs.length+' 案'+(blocked?' <span class="flag">· '+blocked+' 卡關</span>':'')+'</td>'
+      + '<td>'+(lastLog?('<span style="font-family:var(--mono);font-size:12px">'+lastLog.date+'</span>'+(stale>9?' <span class="flag">· 已 '+Math.round(stale)+' 天</span>':'')):'<span class="flag">尚無週報</span>')+'</td>'
+      + '</tr>';
+  }).join('');
+  return '<div class="section-head"><div><div class="eyebrow">PI Overview</div>'
+    + '<h2>全實驗室總覽</h2></div></div>'
+    + '<div class="ov-wrap"><table><thead><tr>'
+    + '<th>學生 / 年資</th><th>領域</th><th>檢核達成</th><th>專案</th><th>最新週報</th>'
+    + '</tr></thead><tbody>'+rows+'</tbody></table></div>'
+    + '<p class="hint">紅字提示需要關注：專案卡關、或超過 9 天沒有更新週報。點上方「我的檢核／專案／週報」可切換到單一學生視角。</p>';
+}
+function bindOverview(){}
+
+/* ---------------- modals ---------------- */
+function closeModal(){ $('#modalRoot').innerHTML=''; }
+function openStudentModal(existing){
+  const s = existing || {name:'', level:'undergrad', tier:'U1', tracks:['ai']};
+  const levelOpts = Object.keys(LEVELS).map(k=>'<option value="'+k+'"'+(s.level===k?' selected':'')+'>'+LEVELS[k].label+'</option>').join('');
+  const tierOpts = LEVELS[s.level].tiers.map(t=>'<option value="'+t+'"'+(s.tier===t?' selected':'')+'>'+t+' '+TIER_META[t].name+'</option>').join('');
+  const trackOpts = Object.keys(TRACKS).map(t=>'<div class="opt'+(s.tracks.includes(t)?' on':'')+'" data-track="'+t+'"><span class="chip '+t+'" style="border:none;padding:0"><span class="dot"></span></span>'+TRACKS[t].label+'</div>').join('');
+  $('#modalRoot').innerHTML =
+    '<div class="scrim" id="scrim"><div class="modal">'
+    + '<h3>'+(existing?'編輯學生':'新增學生')+'</h3>'
+    + '<div class="field"><label>姓名</label><input id="stName" value="'+esc(s.name)+'" placeholder="王小明"></div>'
+    + '<div class="field"><label>學制</label><select id="stLevel">'+levelOpts+'</select></div>'
+    + '<div class="field"><label>年資階段</label><select id="stTier">'+tierOpts+'</select></div>'
+    + '<div class="field"><label>負責領域（可多選）</label><div class="track-pick" id="stTracks">'+trackOpts+'</div></div>'
+    + '<div class="modal-actions">'
+    + (existing?'<button class="btn ghost" id="stDelete" style="margin-right:auto;color:var(--danger)">刪除學生</button>':'')
+    + '<button class="btn ghost" id="stCancel">取消</button>'
+    + '<button class="btn" id="stSave">儲存</button></div></div></div>';
+
+  $('#scrim').addEventListener('click', e=>{ if(e.target.id==='scrim') closeModal(); });
+  $('#stCancel').addEventListener('click', closeModal);
+  $('#stLevel').addEventListener('change', e=>{
+    const tiers = LEVELS[e.target.value].tiers;
+    $('#stTier').innerHTML = tiers.map(t=>'<option value="'+t+'">'+t+' '+TIER_META[t].name+'</option>').join('');
+  });
+  $('#stTracks').querySelectorAll('.opt').forEach(o=>o.addEventListener('click',()=>o.classList.toggle('on')));
+  if(existing) $('#stDelete').addEventListener('click', ()=>{
+    if(confirm('刪除「'+s.name+'」及其所有勾選？專案與週報會保留但失去擁有者。')){
+      S.students = S.students.filter(x=>x.id!==s.id);
+      delete S.checklists[s.id];
+      saveKey('lab_students', S.students, true);
+      saveKey('lab_checklists', S.checklists, true);
+      if(S.me===s.id){ S.me=null; saveKey('lab_me',null,false); }
+      closeModal(); renderWho(); render();
+    }
+  });
+  $('#stSave').addEventListener('click', ()=>{
+    const name=$('#stName').value.trim();
+    if(!name){ alert('請輸入姓名'); return; }
+    const level=$('#stLevel').value, tier=$('#stTier').value;
+    const tracks=[...$('#stTracks').querySelectorAll('.opt.on')].map(o=>o.dataset.track);
+    if(!tracks.length){ alert('至少選一個領域'); return; }
+    if(existing){
+      Object.assign(existing,{name,level,tier,tracks});
+    }else{
+      const ns={id:uid(),name,level,tier,tracks};
+      S.students.push(ns); S.me=ns.id; saveKey('lab_me',ns.id,false);
+    }
+    saveKey('lab_students', S.students, true);
+    closeModal(); renderWho(); render();
+  });
+}
+
+function openProjectModal(existing){
+  const p = existing || {name:'', stage:'文獻', status:'active', milestone:'', deadline:'', blocker:'', links:[]};
+  const stageOpts = STAGES.map(s=>'<option value="'+s+'"'+(p.stage===s?' selected':'')+'>'+s+'</option>').join('');
+  const statusOpts = Object.keys(STATUS).map(k=>'<option value="'+k+'"'+(p.status===k?' selected':'')+'>'+STATUS[k].label+'</option>').join('');
+  const linkVal = (p.links&&p.links[0])?p.links[0].url:'';
+  $('#modalRoot').innerHTML =
+    '<div class="scrim" id="scrim"><div class="modal">'
+    + '<h3>'+(existing?'編輯專案':'新增專案')+'</h3>'
+    + '<div class="field"><label>專案名稱</label><input id="pName" value="'+esc(p.name)+'" placeholder="犬心電圖 AI 分類"></div>'
+    + '<div class="field"><label>目前管線站點</label><select id="pStage">'+stageOpts+'</select></div>'
+    + '<div class="field"><label>狀態</label><select id="pStatus">'+statusOpts+'</select></div>'
+    + '<div class="field"><label>本階段里程碑</label><input id="pMile" value="'+esc(p.milestone)+'" placeholder="例：完成 200 筆標註資料"></div>'
+    + '<div class="field"><label>期限</label><input type="date" id="pDead" value="'+esc(p.deadline)+'"></div>'
+    + '<div class="field"><label>卡點（可留空）</label><textarea id="pBlock" placeholder="目前卡在哪">'+esc(p.blocker)+'</textarea></div>'
+    + '<div class="field"><label>成果連結（Drive／GitHub，可留空）</label><input id="pLink" value="'+esc(linkVal)+'" placeholder="https://…"></div>'
+    + '<div class="modal-actions"><button class="btn ghost" id="pCancel">取消</button>'
+    + '<button class="btn" id="pSave">儲存</button></div></div></div>';
+
+  $('#scrim').addEventListener('click', e=>{ if(e.target.id==='scrim') closeModal(); });
+  $('#pCancel').addEventListener('click', closeModal);
+  $('#pSave').addEventListener('click', ()=>{
+    const name=$('#pName').value.trim();
+    if(!name){ alert('請輸入專案名稱'); return; }
+    const link=$('#pLink').value.trim();
+    const data={
+      name, stage:$('#pStage').value, status:$('#pStatus').value,
+      milestone:$('#pMile').value.trim(), deadline:$('#pDead').value,
+      blocker:$('#pBlock').value.trim(),
+      links: link?[{name:'成果', url:link}]:[]
+    };
+    if(existing){ Object.assign(existing, data); }
+    else{ S.projects.push({id:uid(), owner:S.me, ...data}); }
+    saveKey('lab_projects', S.projects, true);
+    closeModal(); render();
+  });
+}
+
+/* ---------------- events ---------------- */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{ S.view=t.dataset.view; render(); }));
+$('#whoSelect').addEventListener('change', e=>{
+  S.me = e.target.value || null;
+  saveKey('lab_me', S.me, false);
+  if(S.me==='__pi__') S.view='overview';
+  render();
+});
+$('#addStudentBtn').addEventListener('click', ()=>openStudentModal());
+
+/* ---------------- passcode gate (等級二) ----------------
+   驗證方式：向 Firestore 試寫一筆探測資料並夾帶輸入的碼。
+   規則收緊後（見部署說明），只有正確的碼會被接受，其餘回 403。
+   非 Firebase 模式（Claude／本機）無伺服器規則，改用前端軟比對。*/
+async function validateGate(code){
+  if(FIREBASE_PROJECT){
+    try{
+      const res = await fetch(fsUrl('__gate_probe__')+'?updateMask.fieldPaths=value&updateMask.fieldPaths=gate', {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({fields:{value:{stringValue:'probe'}, gate:{stringValue:code}}})
+      });
+      return res.ok;   // 規則放行＝碼正確
+    }catch(e){ return false; }
+  }
+  return code === LAB_PASSCODE;   // 軟比對
+}
+function showGate(){
+  return new Promise(resolve=>{
+    const wrap = document.createElement('div');
+    wrap.className = 'gate';
+    wrap.innerHTML =
+      '<div class="gate-card">'
+      + '<div class="lock"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0a7580" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>'
+      + '<h2>實驗室通行碼</h2>'
+      + '<p>請輸入實驗室通行碼以進入。<br>沒有通行碼請向指導老師索取。</p>'
+      + '<input id="gateInput" type="password" inputmode="text" placeholder="通行碼" autocomplete="off">'
+      + '<button id="gateBtn">進入</button>'
+      + '<div class="gate-err" id="gateErr"></div></div>';
+    document.body.appendChild(wrap);
+    const input = wrap.querySelector('#gateInput');
+    const btn = wrap.querySelector('#gateBtn');
+    const err = wrap.querySelector('#gateErr');
+    input.focus();
+    async function attempt(){
+      const code = input.value.trim();
+      if(!code){ input.focus(); return; }
+      btn.disabled = true; err.textContent = '驗證中…';
+      const ok = await validateGate(code);
+      if(ok){
+        GATE = code;
+        try{ sessionStorage.setItem('lab_gate', code); }catch(e){}
+        wrap.remove(); resolve();
+      }else{
+        btn.disabled = false; err.textContent = '通行碼不正確，請再試一次。';
+        input.select();
+      }
+    }
+    btn.addEventListener('click', attempt);
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter') attempt(); });
+  });
+}
+async function startApp(){
+  if(LAB_PASSCODE){
+    let saved = '';
+    try{ saved = sessionStorage.getItem('lab_gate') || ''; }catch(e){}
+    if(saved){ GATE = saved; }      // 本次瀏覽已通過，不重複詢問
+    else { await showGate(); }
+  }
+  boot();
+}
+
+animateWave();
+startApp();
+</script>
