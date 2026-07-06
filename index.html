@@ -889,7 +889,7 @@ function showGate(){
   });
 }
 async function startApp(){
-  if(FIREBASE_PROJECT || LAB_PASSCODE){   // Firebase 模式一律啟用閘門（由 Firestore 規則驗證）
+  if(LAB_PASSCODE){   // 設定 LAB_PASSCODE 才啟用閘門；留空＝免密碼直接使用
     let saved = '';
     try{ saved = sessionStorage.getItem('lab_gate') || ''; }catch(e){}
     if(saved){ GATE = saved; }      // 本次瀏覽已通過，不重複詢問
