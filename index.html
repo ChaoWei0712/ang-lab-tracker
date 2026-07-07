@@ -301,6 +301,7 @@
       <label>目前身分 Identity</label>
       <select id="whoSelect"></select>
       <button id="addStudentBtn">＋ 新增學生 Add</button>
+      <button id="exportBtn" title="下載 Excel 檔（學生身分＝自己的資料；老師＝全實驗室）">📥 匯出 Export</button>
     </div>
   </div>
 </div>
@@ -1260,6 +1261,70 @@ $('#whoSelect').addEventListener('change', e=>{
   render();
 });
 $('#addStudentBtn').addEventListener('click', ()=>openStudentModal());
+
+/* ---------------- Excel 匯出 ----------------
+   學生身分：匯出自己的資料；老師／未選身分：匯出全實驗室。
+   使用 SheetJS（按下按鈕才載入，不拖慢開頁速度）。 */
+function ensureXLSX(){
+  return new Promise((res, rej)=>{
+    if(window.XLSX) return res();
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    sc.onload = res; sc.onerror = ()=>rej(new Error('xlsx load failed'));
+    document.head.appendChild(sc);
+  });
+}
+async function exportData(){
+  const btn = $('#exportBtn');
+  btn.disabled = true; btn.textContent = '匯出中…';
+  try{ await ensureXLSX(); }
+  catch(e){ alert('匯出元件載入失敗，請檢查網路後再試。Export library failed to load.'); btn.disabled=false; btn.textContent='📥 匯出 Export'; return; }
+
+  const mineOnly = S.me && S.me!=='__pi__';
+  const studs = mineOnly ? S.students.filter(s=>s.id===S.me) : S.students;
+  const ids = new Set(studs.map(s=>s.id));
+  const sname = id => (S.students.find(s=>s.id===id)||{}).name || '';
+  const wb = XLSX.utils.book_new();
+
+  const stuRows = studs.map(s=>{
+    const by = progress(s), tm = TIER_META[s.tier];
+    return {姓名:s.name, 學制:LEVELS[s.level].label, 年資:s.tier+' '+tm.name,
+      領域:s.tracks.map(t=>(TRACKS[t]||{label:t}).label).join('、'),
+      '總達成%':pct(by.all), '研究技能%':pct(by.skill), '專案進度%':pct(by.project), '實驗室成員%':pct(by.citizen)};
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(stuRows), '學生');
+
+  const ckRows = [];
+  studs.forEach(s=>{
+    const st = checkState(s.id);
+    visibleChecks(s).forEach(it=>ckRows.push({學生:s.name, 維度:DIMS[it.dim], 檢核項:it.t,
+      English:it.en||'', 狀態:st[it.id]?'完成':'未完成', 自訂:it.custom?'是':''}));
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ckRows), '檢核明細');
+
+  const pjRows = S.projects.filter(p=>ids.has(p.owner)).map(p=>({
+    負責人:sname(p.owner), 專案:p.name, 管線站點:p.stage, 狀態:(STATUS[p.status]||{label:p.status}).label,
+    里程碑:p.milestone||'', 期限:p.deadline||'', 卡點:p.blocker||'',
+    連結:(p.links&&p.links[0])?p.links[0].url:''}));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pjRows), '專案');
+
+  const lgRows = S.logs.filter(l=>ids.has(l.owner))
+    .sort((a,b)=>a.date.localeCompare(b.date))
+    .map(l=>({學生:sname(l.owner), 日期:l.date, 本週狀態:(WK_STATUS[l.mood]||{label:''}).label,
+      關聯專案:(S.projects.find(p=>p.id===l.project)||{}).name||'',
+      完成:l.done||'', 完成的計畫:(l.planDone||[]).join('；'), 卡關:l.block||'',
+      新增計畫:(l.plan||[]).join('；'), 下週補充:l.next||'', 連結:l.link||''}));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lgRows), '週報');
+
+  const plRows = [];
+  studs.forEach(s=>(S.plans[s.id]||[]).forEach(i=>plRows.push({學生:s.name, 待辦計畫:i.t, 加入日期:i.added||''})));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(plRows), '待辦計畫');
+
+  const who = mineOnly ? (me()||{name:'me'}).name : '全實驗室';
+  XLSX.writeFile(wb, 'ANG-lab-'+who+'-'+today()+'.xlsx');
+  btn.disabled = false; btn.textContent = '📥 匯出 Export';
+}
+$('#exportBtn').addEventListener('click', exportData);
 
 /* ---------------- passcode gate (等級二) ----------------
    驗證方式：向 Firestore 試寫一筆探測資料並夾帶輸入的碼。
