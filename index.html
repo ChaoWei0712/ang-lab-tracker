@@ -714,6 +714,16 @@ function viewProjects(){
     + '<h2>我的專案 <span class="dim-en">My Projects</span></h2></div><button class="btn" id="addProj">＋ 新增專案<span class="ben">Add project</span></button></div>'
     + '<div class="grid">'+cards+'</div>';
 }
+/* 交互 3：專案卡片顯示該專案最近一次週報 */
+function projLastUpdate(p){
+  let pl = null; // 同日多則以較晚送出者為準
+  S.logs.forEach(l=>{ if(l.project===p.id && (!pl || l.date>=pl.date)) pl=l; });
+  if(!pl) return '';
+  const wk = WK_STATUS[pl.mood];
+  return '<div class="kv"><b>最新週報 Update：</b>'+esc(pl.date)
+    + (wk?' <span class="wk-tag" style="background:'+wk.bg+';color:'+wk.color+';margin-left:4px">'+wk.label+' '+wk.en+'</span>':'')
+    + '</div>';
+}
 function projectCard(p){
   const stg = STAGES.indexOf(p.stage); const stt = STATUS[p.status]||STATUS.todo;
   const rail = STAGES.map((s,i)=>'<div class="seg'+(i<=stg?' on':'')+'"></div>').join('');
@@ -725,6 +735,7 @@ function projectCard(p){
     + '<div class="stage-lab">管線站點 Stage：'+esc(p.stage)+' '+(STAGE_EN[p.stage]||'')+'</div>'
     + (p.milestone?'<div class="kv"><b>里程碑 Milestone：</b>'+esc(p.milestone)+'</div>':'')
     + (p.deadline?'<div class="kv"><b>期限 Due：</b>'+esc(p.deadline)+'</div>':'')
+    + projLastUpdate(p)
     + (p.blocker?'<div class="blockbox">⚠ 卡點 Blocker：'+esc(p.blocker)+'</div>':'')
     + (links?'<div class="links">'+links+'</div>':'')
     + '<div class="card-actions"><button data-edit="'+p.id+'">編輯 Edit</button>'
@@ -776,10 +787,20 @@ function viewLog(){
         : '<div class="hint">目前沒有未完成的檢核項或里程碑可選。No unfinished items to pick from yet.</div>')
     + '</div>';
 
+  /* 上週勾選的計畫 → 本週回報執行情況；勾「已完成」的檢核項會自動同步打勾 */
+  const lastLog = mine[0];
+  const lastPlanField = (lastLog && lastLog.plan && lastLog.plan.length)
+    ? '<div class="field"><label>上週計畫執行情況（勾選已完成的）Last week\'s plan — tick what you finished</label>'
+      + '<div class="plan-list" id="lgPrev">'
+      + lastLog.plan.map(t=>'<label class="plan-item"><input type="checkbox" value="'+esc(t)+'"><span>'+esc(t)+'</span></label>').join('')
+      + '</div><div class="hint">勾選的檢核項會自動在「我的檢核」打勾並更新達成率。Ticked checklist items are checked off automatically.</div></div>'
+    : '';
+
   const form = '<div class="card" style="margin-bottom:20px">'
     + '<div class="field"><label>週報日期 Date</label><input type="date" id="lgDate" value="'+today()+'"></div>'
     + '<div class="field"><label>本週狀態 Status this week</label><div class="track-pick" id="lgMood">'+moodOpts+'</div></div>'
     + projField
+    + lastPlanField
     + '<div class="field"><label>這週完成了什麼 What did you finish</label><textarea id="lgDone" placeholder="例：完成濾波前處理，跑通 baseline 模型…"></textarea></div>'
     + '<div class="field"><label>卡在哪裡 Where are you stuck</label><textarea id="lgBlock" placeholder="例：動物取樣時程與器材衝突…（沒有可留空 optional）"></textarea></div>'
     + planField
@@ -797,9 +818,13 @@ function viewLog(){
       (l.plan && l.plan.length) ? l.plan.map(t=>'☑ '+esc(t)).join('<br>') : '',
       l.next ? esc(l.next) : ''
     ].filter(Boolean).join('<br>');
+    const doneTxt = [
+      (l.planDone && l.planDone.length) ? l.planDone.map(t=>'✅ '+esc(t)).join('<br>') : '',
+      l.done ? esc(l.done) : ''
+    ].filter(Boolean).join('<br>');
     return '<div class="log"><div class="node"></div>'
       + '<div class="date">'+esc(l.date)+moodTag+pjTag+'</div>'
-      + (l.done?'<div class="log-row"><span class="k k-done">完成</span><span>'+esc(l.done)+'</span></div>':'')
+      + (doneTxt?'<div class="log-row"><span class="k k-done">完成</span><span>'+doneTxt+'</span></div>':'')
       + (l.block?'<div class="log-row"><span class="k k-block">卡關</span><span>'+esc(l.block)+'</span></div>':'')
       + (nextTxt?'<div class="log-row"><span class="k k-next">下週</span><span>'+nextTxt+'</span></div>':'')
       + link + '</div>';
@@ -823,8 +848,39 @@ function bindLog(){
     const mood = moodEl ? moodEl.dataset.mood : 'ok';
     const project = $('#lgProj') ? $('#lgProj').value : '';
     const plan = $('#lgPlan') ? [...$('#lgPlan').querySelectorAll('input:checked')].map(i=>i.value) : [];
-    if(!done && !block && !next && !plan.length){ alert('至少填一欄或勾選一項再送出。Fill in or pick at least one item.'); return; }
-    S.logs.push({id:uid(), owner:S.me, date, mood, project, plan, done, block, next, link});
+    const planDone = $('#lgPrev') ? [...$('#lgPrev').querySelectorAll('input:checked')].map(i=>i.value) : [];
+    if(!done && !block && !next && !plan.length && !planDone.length){ alert('至少填一欄或勾選一項再送出。Fill in or pick at least one item.'); return; }
+
+    /* 交互 1：勾了「已完成」的上週計畫，若對應檢核項 → 自動打勾 */
+    if(planDone.length){
+      const s = me(), items = visibleChecks(s);
+      let touched = false;
+      planDone.forEach(txt=>{
+        const it = items.find(i=>i.t===txt);
+        if(it && !(S.checklists[s.id]&&S.checklists[s.id][it.id])){
+          if(!S.checklists[s.id]) S.checklists[s.id]={};
+          S.checklists[s.id][it.id]=true; touched=true;
+        }
+      });
+      if(touched) saveKey('lab_checklists', S.checklists, true);
+    }
+
+    /* 交互 2：週報狀態與關聯專案連動（卡關→專案卡關並回填卡點；順利→解除卡關） */
+    if(project){
+      const pj = S.projects.find(p=>p.id===project);
+      if(pj){
+        let changed = false;
+        if(mood==='blocked'){
+          if(pj.status!=='blocked'){ pj.status='blocked'; changed=true; }
+          if(block && pj.blocker!==block){ pj.blocker=block; changed=true; }
+        }else if(mood==='ok' && pj.status==='blocked'){
+          pj.status='active'; pj.blocker=''; changed=true;
+        }
+        if(changed) saveKey('lab_projects', S.projects, true);
+      }
+    }
+
+    S.logs.push({id:uid(), owner:S.me, date, mood, project, plan, planDone, done, block, next, link});
     saveKey('lab_logs', S.logs, true); render();
   });
 }
@@ -837,7 +893,8 @@ function viewOverview(){
     const p = pct(progress(s).all);
     const projs = S.projects.filter(x=>x.owner===s.id);
     const blocked = projs.filter(x=>x.status==='blocked').length;
-    const lastLog = S.logs.filter(l=>l.owner===s.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    let lastLog = null; // 同日多則以較晚送出者為準
+    S.logs.forEach(l=>{ if(l.owner===s.id && (!lastLog || l.date>=lastLog.date)) lastLog=l; });
     const stale = lastLog ? (Date.now()-new Date(lastLog.date).getTime())/864e5 : 999;
     const tm = TIER_META[s.tier];
     const trackChips = s.tracks.map(t=>trackChip(t,true)).join(' ');
@@ -882,12 +939,12 @@ function viewHelp(){
       + '<div class="help-en">Items are listed automatically for your tier — click one to check or uncheck it. The rings show completion across Research Skills / Project Progress / Lab Citizenship; reaching ≥80% of your tier qualifies you for promotion, confirmed by the PI at the semester review. Use "＋ 新增檢核項 Add item" to add personal goals.</div></p>')
 
     + hc('📁','我的專案','My Projects',
-      '<p>為你負責的每個專案建立卡片：設定管線站點（文獻 → 背景 → 方法 → 實驗設計 → 結果討論）、狀態、里程碑與期限。卡住的時候把狀態改成「卡關」並寫下卡點，老師會在總覽看到紅字提醒。'
-      + '<div class="help-en">Create a card for each project you own: set its pipeline stage (Literature → Background → Methods → Experiment Design → Results & Discussion), status, milestone and deadline. When stuck, set the status to Blocked and describe the blocker — the PI sees a red flag in the overview.</div></p>')
+      '<p>為你負責的每個專案建立卡片：設定管線站點（文獻 → 背景 → 方法 → 實驗設計 → 結果討論）、狀態、里程碑與期限。卡住的時候把狀態改成「卡關」並寫下卡點，老師會在總覽看到紅字提醒。卡片會自動顯示該專案最近一次週報的日期與狀態。'
+      + '<div class="help-en">Create a card for each project you own: set its pipeline stage (Literature → Background → Methods → Experiment Design → Results & Discussion), status, milestone and deadline. When stuck, set the status to Blocked and describe the blocker — the PI sees a red flag in the overview. Each card also shows the date and status of its latest weekly update.</div></p>')
 
     + hc('🗓','週報進度','Weekly Updates',
-      '<p>每週送出一則週報：先選「本週狀態」（順利／稍有落後／卡關／需要討論），再選這週進度屬於哪個專案，接著填寫完成事項與卡點。「下週計畫」直接從你自己的檢核項和專案里程碑勾選，依個人進度安排下週，也可以用文字補充。送出後會自動排成時間軸；超過 9 天沒更新，總覽會出現紅字提醒。'
-      + '<div class="help-en">Each week: pick a status (On track / Behind / Blocked / Need discussion), link the update to one of your projects, then describe what you finished and where you are stuck. For next week, tick items straight from your own checklist and project milestones — planning follows your personal progress — plus optional notes. Entries form a timeline; going 9+ days without an update shows a red flag in the overview.</div></p>')
+      '<p>每週送出一則週報：先選「本週狀態」（順利／稍有落後／卡關／需要討論），再選這週進度屬於哪個專案，接著填寫完成事項與卡點。「下週計畫」直接從你自己的檢核項和專案里程碑勾選，依個人進度安排下週，也可以用文字補充。各模組會自動連動：上週勾的計畫這週回報「已完成」，對應檢核項就自動打勾；週報選「卡關」時，關聯專案會自動標記卡關並記下卡點，之後回報「順利」則自動解除。送出後會自動排成時間軸；超過 9 天沒更新，總覽會出現紅字提醒。'
+      + '<div class="help-en">Each week: pick a status (On track / Behind / Blocked / Need discussion), link the update to one of your projects, then describe what you finished and where you are stuck. For next week, tick items straight from your own checklist and project milestones — planning follows your personal progress — plus optional notes. Modules stay in sync automatically: plan items you report as finished check themselves off on your checklist; reporting Blocked marks the related project blocked with your note, and a later On-track report clears it. Entries form a timeline; going 9+ days without an update shows a red flag in the overview.</div></p>')
 
     + hc('📊','全實驗室總覽','Lab Overview',
       '<p>老師視角：所有學生的檢核達成率、專案與卡關數、最新週報時間一覽無遺。紅字代表需要關注的地方。'
