@@ -1091,16 +1091,20 @@ function viewOverview(){
       + '<td>'+(lastLog?('<span style="font-family:var(--mono);font-size:12px">'+lastLog.date+'</span>'
           +(WK_STATUS[lastLog.mood]?'<span class="wk-tag" style="background:'+WK_STATUS[lastLog.mood].bg+';color:'+WK_STATUS[lastLog.mood].color+'">'+WK_STATUS[lastLog.mood].label+'</span>':'')
           +(stale>9?' <span class="flag">· 已 '+Math.round(stale)+' 天 days</span>':'')):'<span class="flag">尚無週報 none</span>')+'</td>'
+      + '<td><button class="btn ghost sm" data-exp="'+s.id+'" title="匯出 '+esc(s.name)+' 的歷史資料 Export history">📥</button></td>'
       + '</tr>';
   }).join('');
   return '<div class="section-head"><div><div class="eyebrow">PI Overview</div>'
     + '<h2>全實驗室總覽 <span class="dim-en">Lab Overview</span></h2></div></div>'
     + '<div class="ov-wrap"><table><thead><tr>'
-    + '<th>學生 / 年資 Student</th><th>領域 Tracks</th><th>檢核達成 Progress</th><th>專案 Projects</th><th>最新週報 Last update</th>'
+    + '<th>學生 / 年資 Student</th><th>領域 Tracks</th><th>檢核達成 Progress</th><th>專案 Projects</th><th>最新週報 Last update</th><th>匯出 Export</th>'
     + '</tr></thead><tbody>'+rows+'</tbody></table></div>'
     + '<p class="hint">紅字提示需要關注：專案卡關、或超過 9 天沒有更新週報。點上方「我的檢核／專案／週報」可切換到單一學生視角。<br>Red text needs attention: a blocked project, or no weekly update for 9+ days. Use the tabs above to switch to a single-student view.</p>';
 }
-function bindOverview(){}
+function bindOverview(){
+  document.querySelectorAll('[data-exp]').forEach(b=>
+    b.addEventListener('click', ()=>exportData(b.dataset.exp)));
+}
 
 /* ---------- help view ---------- */
 function viewHelp(){
@@ -1274,14 +1278,15 @@ function ensureXLSX(){
     document.head.appendChild(sc);
   });
 }
-async function exportData(){
+async function exportData(targetSid){
   const btn = $('#exportBtn');
   btn.disabled = true; btn.textContent = '匯出中…';
   try{ await ensureXLSX(); }
   catch(e){ alert('匯出元件載入失敗，請檢查網路後再試。Export library failed to load.'); btn.disabled=false; btn.textContent='📥 匯出 Export'; return; }
 
-  const mineOnly = S.me && S.me!=='__pi__';
-  const studs = mineOnly ? S.students.filter(s=>s.id===S.me) : S.students;
+  const sid = (typeof targetSid==='string' && targetSid) ? targetSid
+            : (S.me && S.me!=='__pi__' ? S.me : null);
+  const studs = sid ? S.students.filter(s=>s.id===sid) : S.students;
   const ids = new Set(studs.map(s=>s.id));
   const sname = id => (S.students.find(s=>s.id===id)||{}).name || '';
   const wb = XLSX.utils.book_new();
@@ -1320,11 +1325,11 @@ async function exportData(){
   studs.forEach(s=>(S.plans[s.id]||[]).forEach(i=>plRows.push({學生:s.name, 待辦計畫:i.t, 加入日期:i.added||''})));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(plRows), '待辦計畫');
 
-  const who = mineOnly ? (me()||{name:'me'}).name : '全實驗室';
+  const who = studs.length===1 ? studs[0].name : '全實驗室';
   XLSX.writeFile(wb, 'ANG-lab-'+who+'-'+today()+'.xlsx');
   btn.disabled = false; btn.textContent = '📥 匯出 Export';
 }
-$('#exportBtn').addEventListener('click', exportData);
+$('#exportBtn').addEventListener('click', ()=>exportData());
 
 /* ---------------- passcode gate (等級二) ----------------
    驗證方式：向 Firestore 試寫一筆探測資料並夾帶輸入的碼。
