@@ -257,6 +257,11 @@
   }
   .plan-list .plan-item input{margin:3px 0 0;accent-color:var(--trace);flex:none;width:auto}
   .plan-list .plan-item .pi-en{display:block;font-size:11.5px;color:var(--ink-soft)}
+  .plan-list .plan-item .plan-del{
+    margin-left:auto;background:none;border:none;color:var(--ink-soft);
+    font-size:16px;line-height:1;padding:0 4px;flex:none;cursor:pointer;
+  }
+  .plan-list .plan-item .plan-del:hover{color:var(--danger)}
 
   @media (max-width:620px){
     .gauges{margin-left:0;width:100%}
@@ -513,7 +518,7 @@ async function saveKey(key, val, shared){
   }catch(e){ console.error('save failed', key, e); }
 }
 
-const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, customTracks:[], me:null, view:'checklist' };
+const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, customTracks:[], plans:{}, me:null, view:'checklist' };
 
 /* ============================================================
    結構化資料庫層（Firebase 模式）
@@ -612,6 +617,10 @@ async function dbSaveCustomChecks(sid){
   if(FB()) await fsSaveDoc('customchecks_'+sid, {type:'customchecks', owner:sid, items:S.custom[sid]||[]});
   else await saveKey('lab_custom_checks', S.custom, true);
 }
+async function dbSavePlans(sid){
+  if(FB()) await fsSaveDoc('plans_'+sid, {type:'plans', owner:sid, items:S.plans[sid]||[]});
+  else await saveKey('lab_plans', S.plans, true);
+}
 async function dbSaveTrack(t){
   if(FB()) await fsSaveDoc('track_'+t.id, {type:'track', label:t.label, short:t.short||t.label, color:t.color||''});
   else await saveKey('lab_custom_tracks', S.customTracks, true);
@@ -637,13 +646,14 @@ async function migrateLegacy(){
 async function dbLoadAll(){
   if(FB()){
     const docs = await fsListAll();
-    S.students=[]; S.projects=[]; S.logs=[]; S.checklists={}; S.custom={}; S.customTracks=[];
+    S.students=[]; S.projects=[]; S.logs=[]; S.checklists={}; S.custom={}; S.customTracks=[]; S.plans={};
     docs.forEach(d=>{
       if(d.type==='student') S.students.push({id:d._id.slice(8), name:d.name||'', level:d.level||'undergrad', tier:d.tier||'U1', tracks:d.tracks||[]});
       else if(d.type==='project') S.projects.push({id:d._id.slice(8), owner:d.owner||'', name:d.name||'', stage:d.stage||STAGES[0], status:d.status||'todo', milestone:d.milestone||'', deadline:d.deadline||'', blocker:d.blocker||'', links:d.links||[]});
       else if(d.type==='log') S.logs.push({id:d._id.slice(4), owner:d.owner||'', date:d.date||'', mood:d.mood||'', project:d.project||'', plan:d.plan||[], planDone:d.planDone||[], done:d.done||'', block:d.block||'', next:d.next||'', link:d.link||''});
       else if(d.type==='checklist') S.checklists[d.owner] = d.checks||{};
       else if(d.type==='customchecks') S.custom[d.owner] = d.items||[];
+      else if(d.type==='plans') S.plans[d.owner] = d.items||[];
       else if(d.type==='track') S.customTracks.push({id:d._id.slice(6), label:d.label||'', short:d.short||d.label||'', color:d.color||''});
     });
     if(!S.students.length){ // 尚無結構化資料 → 檢查舊版 JSON 並自動搬移
@@ -657,6 +667,7 @@ async function dbLoadAll(){
     S.logs         = await loadKey('lab_logs', true, []);
     S.custom       = await loadKey('lab_custom_checks', true, {});
     S.customTracks = await loadKey('lab_custom_tracks', true, []);
+    S.plans        = await loadKey('lab_plans', true, {});
   }
 }
 
@@ -899,8 +910,10 @@ function viewLog(){
   const s = me(), st = checkState(s.id);
   const mine = S.logs.filter(l=>l.owner===S.me).sort((a,b)=>b.date.localeCompare(a.date));
   const myProjs = S.projects.filter(p=>p.owner===S.me);
-  const todoChecks = visibleChecks(s).filter(it=>!st[it.id]);
-  const miles = myProjs.filter(p=>p.milestone && p.status!=='done');
+  const myPlans = S.plans[S.me] || [];
+  const planTexts = new Set(myPlans.map(i=>i.t));   // 已在待辦清單的不重複列入挑選區
+  const todoChecks = visibleChecks(s).filter(it=>!st[it.id] && !planTexts.has(it.t));
+  const miles = myProjs.filter(p=>p.milestone && p.status!=='done' && !planTexts.has('【'+p.name+'】'+p.milestone));
 
   const moodOpts = Object.keys(WK_STATUS).map(k=>
     '<div class="opt'+(k==='ok'?' on':'')+'" data-mood="'+k+'">'
@@ -921,19 +934,22 @@ function viewLog(){
       '<label class="plan-item"><input type="checkbox" value="'+esc('【'+p.name+'】'+p.milestone)+'"><span>【'+esc(p.name)+'】'+esc(p.milestone)
       + '<span class="pi-en">專案里程碑 Project milestone</span></span></label>'))
     .join('');
-  const planField = '<div class="field"><label>下週計畫（從你的檢核項／專案里程碑勾選）Next-week plan (pick items)</label>'
+  const planField = '<div class="field"><label>新增下週計畫（從你的檢核項／專案里程碑勾選）Add to plan (pick items)</label>'
     + (planItems
         ? '<div class="plan-list" id="lgPlan">'+planItems+'</div>'
-        : '<div class="hint">目前沒有未完成的檢核項或里程碑可選。No unfinished items to pick from yet.</div>')
+        : '<div class="hint">目前沒有可新增的檢核項或里程碑。No more items to add.</div>')
     + '</div>';
 
-  /* 上週勾選的計畫 → 本週回報執行情況；勾「已完成」的檢核項會自動同步打勾 */
-  const lastLog = mine[0];
-  const lastPlanField = (lastLog && lastLog.plan && lastLog.plan.length)
-    ? '<div class="field"><label>上週計畫執行情況（勾選已完成的）Last week\'s plan — tick what you finished</label>'
+  /* 待辦計畫：之前送出的計畫會一直留在這裡，勾選「已完成」送出後才移除；
+     未勾選的自動延續到下一次週報。按 × 可直接移除（更改計畫）。 */
+  const lastPlanField = myPlans.length
+    ? '<div class="field"><label>待辦計畫（勾選已完成的）Outstanding plan — tick what you finished</label>'
       + '<div class="plan-list" id="lgPrev">'
-      + lastLog.plan.map(t=>'<label class="plan-item"><input type="checkbox" value="'+esc(t)+'"><span>'+esc(t)+'</span></label>').join('')
-      + '</div><div class="hint">勾選的檢核項會自動在「我的檢核」打勾並更新達成率。Ticked checklist items are checked off automatically.</div></div>'
+      + myPlans.map(it=>'<label class="plan-item"><input type="checkbox" value="'+esc(it.id)+'"><span>'+esc(it.t)
+        + (it.added?'<span class="pi-en">加入於 added '+esc(it.added)+'</span>':'')+'</span>'
+        + '<button type="button" class="plan-del" data-pdel="'+esc(it.id)+'" title="移除此計畫（不算完成）Remove">×</button></label>').join('')
+      + '</div><div class="hint">勾選＝已完成，送出週報後移除並自動勾對應檢核項；沒勾的會自動延續到下次。按 × 直接移除（更改計畫）。'
+      + '<br>Ticked items are completed on submit (matching checklist items auto-check); unticked ones carry over. Press × to drop an item.</div></div>'
     : '';
 
   const form = '<div class="card" style="margin-bottom:20px">'
@@ -980,6 +996,14 @@ function bindLog(){
     mp.querySelectorAll('.opt').forEach(x=>x.classList.remove('on'));
     o.classList.add('on');
   }));
+  /* × 移除待辦計畫（更改計畫用，不算完成；只移除該列，不動到表單其他輸入） */
+  document.querySelectorAll('[data-pdel]').forEach(bt=>bt.addEventListener('click', e=>{
+    e.preventDefault(); e.stopPropagation();
+    const s = me();
+    S.plans[s.id] = (S.plans[s.id]||[]).filter(i=>i.id!==bt.dataset.pdel);
+    dbSavePlans(s.id);
+    bt.closest('.plan-item').remove();
+  }));
   const b=$('#lgSubmit'); if(!b) return;
   b.addEventListener('click',()=>{
     const done=$('#lgDone').value.trim(), block=$('#lgBlock').value.trim(),
@@ -988,7 +1012,9 @@ function bindLog(){
     const mood = moodEl ? moodEl.dataset.mood : 'ok';
     const project = $('#lgProj') ? $('#lgProj').value : '';
     const plan = $('#lgPlan') ? [...$('#lgPlan').querySelectorAll('input:checked')].map(i=>i.value) : [];
-    const planDone = $('#lgPrev') ? [...$('#lgPrev').querySelectorAll('input:checked')].map(i=>i.value) : [];
+    const doneIds = $('#lgPrev') ? [...$('#lgPrev').querySelectorAll('input:checked')].map(i=>i.value) : [];
+    const myPlans = S.plans[S.me]||[];
+    const planDone = myPlans.filter(i=>doneIds.includes(i.id)).map(i=>i.t);
     if(!done && !block && !next && !plan.length && !planDone.length){ alert('至少填一欄或勾選一項再送出。Fill in or pick at least one item.'); return; }
 
     /* 交互 1：勾了「已完成」的上週計畫，若對應檢核項 → 自動打勾 */
@@ -1019,6 +1045,23 @@ function bindLog(){
         if(changed) dbSaveProject(pj);
       }
     }
+
+    /* 更新待辦計畫：勾「已完成」的移除；新勾選的加入並持續追蹤到完成為止 */
+    let plansChanged = false;
+    if(doneIds.length){
+      S.plans[S.me] = myPlans.filter(i=>!doneIds.includes(i.id));
+      plansChanged = true;
+    }
+    if(plan.length){
+      S.plans[S.me] = S.plans[S.me]||[];
+      plan.forEach(t=>{
+        if(!S.plans[S.me].some(i=>i.t===t)){
+          S.plans[S.me].push({id:'p'+uid(), t, added:date});
+          plansChanged = true;
+        }
+      });
+    }
+    if(plansChanged) dbSavePlans(S.me);
 
     const nl = {id:uid(), owner:S.me, date, mood, project, plan, planDone, done, block, next, link};
     S.logs.push(nl);
@@ -1084,8 +1127,8 @@ function viewHelp(){
       + '<div class="help-en">Create a card for each project you own: set its pipeline stage (Literature → Background → Methods → Experiment Design → Results & Discussion), status, milestone and deadline. When stuck, set the status to Blocked and describe the blocker — the PI sees a red flag in the overview. Each card also shows the date and status of its latest weekly update.</div></p>')
 
     + hc('🗓','週報進度','Weekly Updates',
-      '<p>每週送出一則週報：先選「本週狀態」（順利／稍有落後／卡關／需要討論），再選這週進度屬於哪個專案，接著填寫完成事項與卡點。「下週計畫」直接從你自己的檢核項和專案里程碑勾選，依個人進度安排下週，也可以用文字補充。各模組會自動連動：上週勾的計畫這週回報「已完成」，對應檢核項就自動打勾；週報選「卡關」時，關聯專案會自動標記卡關並記下卡點，之後回報「順利」則自動解除。送出後會自動排成時間軸；超過 9 天沒更新，總覽會出現紅字提醒。'
-      + '<div class="help-en">Each week: pick a status (On track / Behind / Blocked / Need discussion), link the update to one of your projects, then describe what you finished and where you are stuck. For next week, tick items straight from your own checklist and project milestones — planning follows your personal progress — plus optional notes. Modules stay in sync automatically: plan items you report as finished check themselves off on your checklist; reporting Blocked marks the related project blocked with your note, and a later On-track report clears it. Entries form a timeline; going 9+ days without an update shows a red flag in the overview.</div></p>')
+      '<p>每週送出一則週報：先選「本週狀態」（順利／稍有落後／卡關／需要討論），再選這週進度屬於哪個專案，接著填寫完成事項與卡點。「下週計畫」直接從你自己的檢核項和專案里程碑勾選，依個人進度安排。計畫會持續追蹤：沒完成的項目自動延續到下一次週報，直到你勾選「已完成」才移除，也可按 × 直接移除（更改計畫）。各模組會自動連動：計畫回報「已完成」，對應檢核項就自動打勾；週報選「卡關」時，關聯專案會自動標記卡關並記下卡點，之後回報「順利」則自動解除。送出後會自動排成時間軸；超過 9 天沒更新，總覽會出現紅字提醒。'
+      + '<div class="help-en">Each week: pick a status (On track / Behind / Blocked / Need discussion), link the update to one of your projects, then describe what you finished and where you are stuck. Build your plan by ticking items from your own checklist and project milestones. Plans are tracked continuously: unfinished items carry over to the next update until you tick them as finished, or press × to drop them (edit your plan). Modules stay in sync automatically: plan items reported finished check themselves off on your checklist; reporting Blocked marks the related project blocked with your note, and a later On-track report clears it. Entries form a timeline; going 9+ days without an update shows a red flag in the overview.</div></p>')
 
     + hc('📊','全實驗室總覽','Lab Overview',
       '<p>老師視角：所有學生的檢核達成率、專案與卡關數、最新週報時間一覽無遺。紅字代表需要關注的地方。'
