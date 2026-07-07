@@ -244,7 +244,19 @@
   /* ---------- add-track row ---------- */
   .track-add{display:flex;gap:8px;margin-top:9px}
   .track-add input{flex:1;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;min-width:0}
+  .track-pick .opt{cursor:pointer}
   .track-pick .opt .tdot{width:8px;height:8px;border-radius:50%;flex:none}
+
+  /* ---------- weekly log options ---------- */
+  .wk-tag{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:12px;margin-left:8px;vertical-align:middle}
+  .plan-list{max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:#fff}
+  .plan-list .plan-item{
+    display:flex;gap:9px;align-items:flex-start;cursor:pointer;
+    font-family:var(--body);font-size:13.5px;font-weight:400;color:var(--ink);
+    text-transform:none;letter-spacing:0;margin:7px 0;
+  }
+  .plan-list .plan-item input{margin:3px 0 0;accent-color:var(--trace);flex:none;width:auto}
+  .plan-list .plan-item .pi-en{display:block;font-size:11.5px;color:var(--ink-soft)}
 
   @media (max-width:620px){
     .gauges{margin-left:0;width:100%}
@@ -443,6 +455,14 @@ const STATUS = {
   done:{label:'完成', en:'Done', cls:'st-done'},
 };
 
+/* 週報「本週狀態」選項 */
+const WK_STATUS = {
+  ok:      {label:'順利',     en:'On track',        color:'#2f7d58', bg:'#e5f5ef'},
+  behind:  {label:'稍有落後', en:'Behind',          color:'#b5711f', bg:'#fbeee0'},
+  blocked: {label:'卡關',     en:'Blocked',         color:'#c65a4e', bg:'#fdecea'},
+  discuss: {label:'需要討論', en:'Need discussion', color:'#5a4bb5', bg:'#eae6fb'},
+};
+
 /* ---------------- storage adapter ----------------
    三種後端自動切換：
    1. 在 Claude 平台開啟 → 使用內建 window.storage（全體共享）
@@ -463,6 +483,10 @@ async function loadKey(key, shared, fallback){
       return r && r.value ? JSON.parse(r.value) : fallback;
     }
     if(FIREBASE_PROJECT){
+      if(!shared){ // 個人設定（如身分選擇）存本機，避免全實驗室互相覆蓋
+        const v = localStorage.getItem('lab:'+key);
+        return v ? JSON.parse(v) : fallback;
+      }
       const res = await fetch(fsUrl(key));
       if(!res.ok) return fallback;
       const d = await res.json();
@@ -478,6 +502,7 @@ async function saveKey(key, val, shared){
     const json = JSON.stringify(val);
     if(hasClaudeStore){ await window.storage.set(key, json, shared); return; }
     if(FIREBASE_PROJECT){
+      if(!shared){ localStorage.setItem('lab:'+key, json); return; }
       await fetch(fsUrl(key)+'?updateMask.fieldPaths=value&updateMask.fieldPaths=gate', {
         method:'PATCH', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({fields:{value:{stringValue:json}, gate:{stringValue:GATE}}})
@@ -720,22 +745,63 @@ function bindProjects(){
 
 /* ---------- weekly log view ---------- */
 function viewLog(){
+  const s = me(), st = checkState(s.id);
   const mine = S.logs.filter(l=>l.owner===S.me).sort((a,b)=>b.date.localeCompare(a.date));
+  const myProjs = S.projects.filter(p=>p.owner===S.me);
+  const todoChecks = visibleChecks(s).filter(it=>!st[it.id]);
+  const miles = myProjs.filter(p=>p.milestone && p.status!=='done');
+
+  const moodOpts = Object.keys(WK_STATUS).map(k=>
+    '<div class="opt'+(k==='ok'?' on':'')+'" data-mood="'+k+'">'
+    + '<span class="tdot" style="background:'+WK_STATUS[k].color+'"></span>'
+    + WK_STATUS[k].label+' '+WK_STATUS[k].en+'</div>').join('');
+
+  const projField = myProjs.length
+    ? '<div class="field"><label>關聯專案 Related project</label><select id="lgProj">'
+      + '<option value="">—（不指定 None）</option>'
+      + myProjs.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join('')
+      + '</select></div>'
+    : '';
+
+  const planItems = todoChecks.map(it=>
+      '<label class="plan-item"><input type="checkbox" value="'+esc(it.t)+'"><span>'+esc(it.t)
+      + (it.en?'<span class="pi-en">'+esc(it.en)+'</span>':'')+'</span></label>')
+    .concat(miles.map(p=>
+      '<label class="plan-item"><input type="checkbox" value="'+esc('【'+p.name+'】'+p.milestone)+'"><span>【'+esc(p.name)+'】'+esc(p.milestone)
+      + '<span class="pi-en">專案里程碑 Project milestone</span></span></label>'))
+    .join('');
+  const planField = '<div class="field"><label>下週計畫（從你的檢核項／專案里程碑勾選）Next-week plan (pick items)</label>'
+    + (planItems
+        ? '<div class="plan-list" id="lgPlan">'+planItems+'</div>'
+        : '<div class="hint">目前沒有未完成的檢核項或里程碑可選。No unfinished items to pick from yet.</div>')
+    + '</div>';
+
   const form = '<div class="card" style="margin-bottom:20px">'
     + '<div class="field"><label>週報日期 Date</label><input type="date" id="lgDate" value="'+today()+'"></div>'
+    + '<div class="field"><label>本週狀態 Status this week</label><div class="track-pick" id="lgMood">'+moodOpts+'</div></div>'
+    + projField
     + '<div class="field"><label>這週完成了什麼 What did you finish</label><textarea id="lgDone" placeholder="例：完成濾波前處理，跑通 baseline 模型…"></textarea></div>'
     + '<div class="field"><label>卡在哪裡 Where are you stuck</label><textarea id="lgBlock" placeholder="例：動物取樣時程與器材衝突…（沒有可留空 optional）"></textarea></div>'
-    + '<div class="field"><label>下週要做什麼 Plan for next week</label><textarea id="lgNext" placeholder="例：加入資料擴增、重跑實驗…"></textarea></div>'
+    + planField
+    + '<div class="field"><label>下週補充說明 Extra notes for next week（可留空 optional）</label><textarea id="lgNext" placeholder="例：加入資料擴增、重跑實驗…"></textarea></div>'
     + '<div class="field"><label>進度連結 Links（貼 Drive／GitHub／Notebook 網址，可留空 optional）</label><input id="lgLink" placeholder="https://…"></div>'
     + '<div style="text-align:right"><button class="btn" id="lgSubmit">送出週報<span class="ben">Submit</span></button></div></div>';
 
   let timeline = mine.map(l=>{
+    const wk = WK_STATUS[l.mood];
+    const moodTag = wk ? '<span class="wk-tag" style="background:'+wk.bg+';color:'+wk.color+'">'+wk.label+' '+wk.en+'</span>' : '';
+    const pj = l.project ? S.projects.find(p=>p.id===l.project) : null;
+    const pjTag = pj ? '<span class="wk-tag" style="background:#f0fafb;color:var(--trace-deep)">📁 '+esc(pj.name)+'</span>' : '';
     const link = l.link ? '<div class="log-row"><span class="k k-next">連結</span><a href="'+esc(l.link)+'" target="_blank" rel="noopener" style="font-family:var(--mono);font-size:12px;color:var(--trace-deep)">'+esc(l.link)+'</a></div>' : '';
+    const nextTxt = [
+      (l.plan && l.plan.length) ? l.plan.map(t=>'☑ '+esc(t)).join('<br>') : '',
+      l.next ? esc(l.next) : ''
+    ].filter(Boolean).join('<br>');
     return '<div class="log"><div class="node"></div>'
-      + '<div class="date">'+esc(l.date)+'</div>'
+      + '<div class="date">'+esc(l.date)+moodTag+pjTag+'</div>'
       + (l.done?'<div class="log-row"><span class="k k-done">完成</span><span>'+esc(l.done)+'</span></div>':'')
       + (l.block?'<div class="log-row"><span class="k k-block">卡關</span><span>'+esc(l.block)+'</span></div>':'')
-      + (l.next?'<div class="log-row"><span class="k k-next">下週</span><span>'+esc(l.next)+'</span></div>':'')
+      + (nextTxt?'<div class="log-row"><span class="k k-next">下週</span><span>'+nextTxt+'</span></div>':'')
       + link + '</div>';
   }).join('');
   if(!mine.length) timeline = '<div class="empty"><strong>還沒有週報 No updates yet</strong>用上面的表單送出第一則，進度會自動存下並排成時間軸。<br><span style="font-size:12.5px">Submit your first update with the form above — entries are saved and shown as a timeline.</span></div>';
@@ -744,12 +810,21 @@ function viewLog(){
     + '<h2>週報進度 <span class="dim-en">Weekly Updates</span></h2></div></div>'+form+timeline;
 }
 function bindLog(){
+  const mp = $('#lgMood');
+  if(mp) mp.querySelectorAll('.opt').forEach(o=>o.addEventListener('click',()=>{
+    mp.querySelectorAll('.opt').forEach(x=>x.classList.remove('on'));
+    o.classList.add('on');
+  }));
   const b=$('#lgSubmit'); if(!b) return;
   b.addEventListener('click',()=>{
     const done=$('#lgDone').value.trim(), block=$('#lgBlock').value.trim(),
           next=$('#lgNext').value.trim(), link=$('#lgLink').value.trim(), date=$('#lgDate').value||today();
-    if(!done && !block && !next){ alert('至少填一欄再送出。'); return; }
-    S.logs.push({id:uid(), owner:S.me, date, done, block, next, link});
+    const moodEl = $('#lgMood .opt.on');
+    const mood = moodEl ? moodEl.dataset.mood : 'ok';
+    const project = $('#lgProj') ? $('#lgProj').value : '';
+    const plan = $('#lgPlan') ? [...$('#lgPlan').querySelectorAll('input:checked')].map(i=>i.value) : [];
+    if(!done && !block && !next && !plan.length){ alert('至少填一欄或勾選一項再送出。Fill in or pick at least one item.'); return; }
+    S.logs.push({id:uid(), owner:S.me, date, mood, project, plan, done, block, next, link});
     saveKey('lab_logs', S.logs, true); render();
   });
 }
@@ -771,7 +846,9 @@ function viewOverview(){
       + '<td>'+trackChips+'</td>'
       + '<td><span class="mini-bar"><span style="width:'+p+'%"></span></span> <span style="font-family:var(--mono);font-size:12px">'+p+'%</span></td>'
       + '<td>'+projs.length+' 案'+(blocked?' <span class="flag">· '+blocked+' 卡關 blocked</span>':'')+'</td>'
-      + '<td>'+(lastLog?('<span style="font-family:var(--mono);font-size:12px">'+lastLog.date+'</span>'+(stale>9?' <span class="flag">· 已 '+Math.round(stale)+' 天 days</span>':'')):'<span class="flag">尚無週報 none</span>')+'</td>'
+      + '<td>'+(lastLog?('<span style="font-family:var(--mono);font-size:12px">'+lastLog.date+'</span>'
+          +(WK_STATUS[lastLog.mood]?'<span class="wk-tag" style="background:'+WK_STATUS[lastLog.mood].bg+';color:'+WK_STATUS[lastLog.mood].color+'">'+WK_STATUS[lastLog.mood].label+'</span>':'')
+          +(stale>9?' <span class="flag">· 已 '+Math.round(stale)+' 天 days</span>':'')):'<span class="flag">尚無週報 none</span>')+'</td>'
       + '</tr>';
   }).join('');
   return '<div class="section-head"><div><div class="eyebrow">PI Overview</div>'
@@ -809,8 +886,8 @@ function viewHelp(){
       + '<div class="help-en">Create a card for each project you own: set its pipeline stage (Literature → Background → Methods → Experiment Design → Results & Discussion), status, milestone and deadline. When stuck, set the status to Blocked and describe the blocker — the PI sees a red flag in the overview.</div></p>')
 
     + hc('🗓','週報進度','Weekly Updates',
-      '<p>每週填三欄：這週完成了什麼、卡在哪裡、下週要做什麼，可附上 Drive／GitHub 連結。送出後會自動排成時間軸；超過 9 天沒更新，總覽會出現紅字提醒。'
-      + '<div class="help-en">Each week, fill in what you finished, where you are stuck, and your plan for next week (links optional). Entries form a timeline; going 9+ days without an update shows a red flag in the overview.</div></p>')
+      '<p>每週送出一則週報：先選「本週狀態」（順利／稍有落後／卡關／需要討論），再選這週進度屬於哪個專案，接著填寫完成事項與卡點。「下週計畫」直接從你自己的檢核項和專案里程碑勾選，依個人進度安排下週，也可以用文字補充。送出後會自動排成時間軸；超過 9 天沒更新，總覽會出現紅字提醒。'
+      + '<div class="help-en">Each week: pick a status (On track / Behind / Blocked / Need discussion), link the update to one of your projects, then describe what you finished and where you are stuck. For next week, tick items straight from your own checklist and project milestones — planning follows your personal progress — plus optional notes. Entries form a timeline; going 9+ days without an update shows a red flag in the overview.</div></p>')
 
     + hc('📊','全實驗室總覽','Lab Overview',
       '<p>老師視角：所有學生的檢核達成率、專案與卡關數、最新週報時間一覽無遺。紅字代表需要關注的地方。'
