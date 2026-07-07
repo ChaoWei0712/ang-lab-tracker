@@ -515,16 +515,156 @@ async function saveKey(key, val, shared){
 
 const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, customTracks:[], me:null, view:'checklist' };
 
-async function boot(){
+/* ============================================================
+   結構化資料庫層（Firebase 模式）
+   每筆資料＝一份 Firestore 文件，欄位對應輸入格，可在後台直接查詢：
+     student_<id>      {type:'student', name, level, tier, tracks[]}
+     project_<id>      {type:'project', owner, name, stage, status, milestone, deadline, blocker, links[]}
+     log_<id>          {type:'log', owner, date, mood, project, plan[], planDone[], done, block, next, link}
+     checklist_<sid>   {type:'checklist', owner, checks{項目id:布林}}
+     customchecks_<sid>{type:'customchecks', owner, items[]}
+     track_<id>        {type:'track', label, short, color}
+   舊版整串 JSON 的 lab_* 文件保留作為備份，首次載入自動搬移。
+   非 Firebase 模式（Claude／本機）沿用原本整包 JSON 的存法。
+   ============================================================ */
+const FB = () => FIREBASE_PROJECT && !hasClaudeStore;
+
+function fsVal(v){
+  if(v===null||v===undefined) return {nullValue:null};
+  if(typeof v==='boolean') return {booleanValue:v};
+  if(typeof v==='number') return Number.isInteger(v)?{integerValue:String(v)}:{doubleValue:v};
+  if(Array.isArray(v)) return {arrayValue:{values:v.map(fsVal)}};
+  if(typeof v==='object') return {mapValue:{fields:fsFields(v)}};
+  return {stringValue:String(v)};
+}
+function fsFields(o){
+  const f={}; Object.keys(o).forEach(k=>{ if(k!=='id') f[k]=fsVal(o[k]); }); return f;
+}
+function fsParse(v){
+  if('stringValue' in v) return v.stringValue;
+  if('booleanValue' in v) return v.booleanValue;
+  if('integerValue' in v) return Number(v.integerValue);
+  if('doubleValue' in v) return v.doubleValue;
+  if('arrayValue' in v) return (v.arrayValue.values||[]).map(fsParse);
+  if('mapValue' in v){ const o={}, f=v.mapValue.fields||{}; Object.keys(f).forEach(k=>o[k]=fsParse(f[k])); return o; }
+  return null;
+}
+async function fsSaveDoc(docId, obj){
+  try{
+    await fetch(fsUrl(docId), {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({fields: fsFields({...obj, gate:GATE})})
+    });
+  }catch(e){ console.error('fsSaveDoc failed', docId, e); }
+}
+async function fsDeleteDoc(docId){
+  try{ await fetch(fsUrl(docId), {method:'DELETE'}); }
+  catch(e){ console.error('fsDeleteDoc failed', docId, e); }
+}
+async function fsListAll(){
+  const base = 'https://firestore.googleapis.com/v1/projects/'+FIREBASE_PROJECT
+    +'/databases/(default)/documents/labkv?pageSize=300';
+  let docs=[], token=null;
+  try{
+    do{
+      const res = await fetch(base+(token?'&pageToken='+encodeURIComponent(token):''));
+      if(!res.ok) break;
+      const d = await res.json();
+      (d.documents||[]).forEach(doc=>{
+        const o={_id:doc.name.split('/').pop()}, f=doc.fields||{};
+        Object.keys(f).forEach(k=>o[k]=fsParse(f[k]));
+        docs.push(o);
+      });
+      token = d.nextPageToken||null;
+    }while(token);
+  }catch(e){ console.error('fsListAll failed', e); }
+  return docs;
+}
+
+/* ---- 儲存轉接層：所有畫面一律呼叫這些函式 ---- */
+async function dbSaveStudent(s){
+  if(FB()) await fsSaveDoc('student_'+s.id, {type:'student', name:s.name, level:s.level, tier:s.tier, tracks:s.tracks});
+  else await saveKey('lab_students', S.students, true);
+}
+async function dbDeleteStudent(id){
+  if(FB()){ await fsDeleteDoc('student_'+id); await fsDeleteDoc('checklist_'+id); await fsDeleteDoc('customchecks_'+id); }
+  else{ await saveKey('lab_students', S.students, true); await saveKey('lab_checklists', S.checklists, true); }
+}
+async function dbSaveProject(p){
+  if(FB()) await fsSaveDoc('project_'+p.id, {type:'project', owner:p.owner, name:p.name, stage:p.stage, status:p.status,
+    milestone:p.milestone||'', deadline:p.deadline||'', blocker:p.blocker||'', links:p.links||[]});
+  else await saveKey('lab_projects', S.projects, true);
+}
+async function dbDeleteProject(id){
+  if(FB()) await fsDeleteDoc('project_'+id);
+  else await saveKey('lab_projects', S.projects, true);
+}
+async function dbSaveLog(l){
+  if(FB()) await fsSaveDoc('log_'+l.id, {type:'log', owner:l.owner, date:l.date, mood:l.mood||'', project:l.project||'',
+    plan:l.plan||[], planDone:l.planDone||[], done:l.done||'', block:l.block||'', next:l.next||'', link:l.link||''});
+  else await saveKey('lab_logs', S.logs, true);
+}
+async function dbSaveChecklist(sid){
+  if(FB()) await fsSaveDoc('checklist_'+sid, {type:'checklist', owner:sid, checks:S.checklists[sid]||{}});
+  else await saveKey('lab_checklists', S.checklists, true);
+}
+async function dbSaveCustomChecks(sid){
+  if(FB()) await fsSaveDoc('customchecks_'+sid, {type:'customchecks', owner:sid, items:S.custom[sid]||[]});
+  else await saveKey('lab_custom_checks', S.custom, true);
+}
+async function dbSaveTrack(t){
+  if(FB()) await fsSaveDoc('track_'+t.id, {type:'track', label:t.label, short:t.short||t.label, color:t.color||''});
+  else await saveKey('lab_custom_tracks', S.customTracks, true);
+}
+
+/* 舊版 JSON 資料 → 結構化文件（一次性自動搬移） */
+async function migrateLegacy(){
   S.students     = await loadKey('lab_students', true, []);
   S.checklists   = await loadKey('lab_checklists', true, {});
   S.projects     = await loadKey('lab_projects', true, []);
   S.logs         = await loadKey('lab_logs', true, []);
   S.custom       = await loadKey('lab_custom_checks', true, {});
   S.customTracks = await loadKey('lab_custom_tracks', true, []);
+  for(const s of S.students) await dbSaveStudent(s);
+  for(const p of S.projects) await dbSaveProject(p);
+  for(const l of S.logs) await dbSaveLog(l);
+  for(const sid of Object.keys(S.checklists)) await dbSaveChecklist(sid);
+  for(const sid of Object.keys(S.custom)) await dbSaveCustomChecks(sid);
+  for(const t of S.customTracks) await dbSaveTrack(t);
+  console.log('migrated legacy data to structured docs');
+}
+
+async function dbLoadAll(){
+  if(FB()){
+    const docs = await fsListAll();
+    S.students=[]; S.projects=[]; S.logs=[]; S.checklists={}; S.custom={}; S.customTracks=[];
+    docs.forEach(d=>{
+      if(d.type==='student') S.students.push({id:d._id.slice(8), name:d.name||'', level:d.level||'undergrad', tier:d.tier||'U1', tracks:d.tracks||[]});
+      else if(d.type==='project') S.projects.push({id:d._id.slice(8), owner:d.owner||'', name:d.name||'', stage:d.stage||STAGES[0], status:d.status||'todo', milestone:d.milestone||'', deadline:d.deadline||'', blocker:d.blocker||'', links:d.links||[]});
+      else if(d.type==='log') S.logs.push({id:d._id.slice(4), owner:d.owner||'', date:d.date||'', mood:d.mood||'', project:d.project||'', plan:d.plan||[], planDone:d.planDone||[], done:d.done||'', block:d.block||'', next:d.next||'', link:d.link||''});
+      else if(d.type==='checklist') S.checklists[d.owner] = d.checks||{};
+      else if(d.type==='customchecks') S.custom[d.owner] = d.items||[];
+      else if(d.type==='track') S.customTracks.push({id:d._id.slice(6), label:d.label||'', short:d.short||d.label||'', color:d.color||''});
+    });
+    if(!S.students.length){ // 尚無結構化資料 → 檢查舊版 JSON 並自動搬移
+      const legacy = await loadKey('lab_students', true, []);
+      if(legacy.length) await migrateLegacy();
+    }
+  }else{
+    S.students     = await loadKey('lab_students', true, []);
+    S.checklists   = await loadKey('lab_checklists', true, {});
+    S.projects     = await loadKey('lab_projects', true, []);
+    S.logs         = await loadKey('lab_logs', true, []);
+    S.custom       = await loadKey('lab_custom_checks', true, {});
+    S.customTracks = await loadKey('lab_custom_tracks', true, []);
+  }
+}
+
+async function boot(){
+  await dbLoadAll();
   mergeCustomTracks();
-  S.me         = await loadKey('lab_me', false, null);
-  if(S.me && !S.students.find(s=>s.id===S.me)) S.me = null;
+  S.me = await loadKey('lab_me', false, null);
+  if(S.me && S.me!=='__pi__' && !S.students.find(s=>s.id===S.me)) S.me = null;
   renderWho(); render();
 }
 
@@ -664,8 +804,8 @@ function bindChecklist(){
     if(confirm('刪除這個自訂檢核項？')){
       S.custom[s.id] = (S.custom[s.id]||[]).filter(c=>c.id!==b.dataset.cdel);
       if(S.checklists[s.id]) delete S.checklists[s.id][b.dataset.cdel];
-      saveKey('lab_custom_checks', S.custom, true);
-      saveKey('lab_checklists', S.checklists, true);
+      dbSaveCustomChecks(s.id);
+      dbSaveChecklist(s.id);
       render();
     }
   }));
@@ -674,7 +814,7 @@ function bindChecklist(){
       const id = el.dataset.id, s = me();
       if(!S.checklists[s.id]) S.checklists[s.id]={};
       S.checklists[s.id][id] = !S.checklists[s.id][id];
-      saveKey('lab_checklists', S.checklists, true);
+      dbSaveChecklist(s.id);
       render();
     });
   });
@@ -700,7 +840,7 @@ function openCheckModal(){
     const s = me();
     if(!S.custom[s.id]) S.custom[s.id]=[];
     S.custom[s.id].push({id:'c-'+uid(), dim:$('#ckDim').value, t});
-    saveKey('lab_custom_checks', S.custom, true);
+    dbSaveCustomChecks(s.id);
     closeModal(); render();
   });
 }
@@ -749,7 +889,7 @@ function bindProjects(){
   document.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
     if(confirm('刪除這個專案？')){
       S.projects = S.projects.filter(p=>p.id!==b.dataset.del);
-      saveKey('lab_projects', S.projects, true); render();
+      dbDeleteProject(b.dataset.del); render();
     }
   }));
 }
@@ -862,7 +1002,7 @@ function bindLog(){
           S.checklists[s.id][it.id]=true; touched=true;
         }
       });
-      if(touched) saveKey('lab_checklists', S.checklists, true);
+      if(touched) dbSaveChecklist(s.id);
     }
 
     /* 交互 2：週報狀態與關聯專案連動（卡關→專案卡關並回填卡點；順利→解除卡關） */
@@ -876,12 +1016,13 @@ function bindLog(){
         }else if(mood==='ok' && pj.status==='blocked'){
           pj.status='active'; pj.blocker=''; changed=true;
         }
-        if(changed) saveKey('lab_projects', S.projects, true);
+        if(changed) dbSaveProject(pj);
       }
     }
 
-    S.logs.push({id:uid(), owner:S.me, date, mood, project, plan, planDone, done, block, next, link});
-    saveKey('lab_logs', S.logs, true); render();
+    const nl = {id:uid(), owner:S.me, date, mood, project, plan, planDone, done, block, next, link};
+    S.logs.push(nl);
+    dbSaveLog(nl); render();
   });
 }
 
@@ -994,7 +1135,7 @@ function openStudentModal(existing){
     S.customTracks = S.customTracks||[];
     S.customTracks.push(nt);
     mergeCustomTracks();
-    saveKey('lab_custom_tracks', S.customTracks, true);
+    dbSaveTrack(nt);
     const onSet = new Set([...$('#stTracks').querySelectorAll('.opt.on')].map(o=>o.dataset.track));
     onSet.add(nt.id);   // 新領域直接幫使用者選起來
     $('#stTracks').innerHTML = trackOptsHtml(onSet);
@@ -1005,8 +1146,8 @@ function openStudentModal(existing){
     if(confirm('刪除「'+s.name+'」及其所有勾選？專案與週報會保留但失去擁有者。')){
       S.students = S.students.filter(x=>x.id!==s.id);
       delete S.checklists[s.id];
-      saveKey('lab_students', S.students, true);
-      saveKey('lab_checklists', S.checklists, true);
+      delete S.custom[s.id];
+      dbDeleteStudent(s.id);
       if(S.me===s.id){ S.me=null; saveKey('lab_me',null,false); }
       closeModal(); renderWho(); render();
     }
@@ -1017,13 +1158,14 @@ function openStudentModal(existing){
     const level=$('#stLevel').value, tier=$('#stTier').value;
     const tracks=[...$('#stTracks').querySelectorAll('.opt.on')].map(o=>o.dataset.track);
     if(!tracks.length){ alert('至少選一個領域'); return; }
+    let rec;
     if(existing){
-      Object.assign(existing,{name,level,tier,tracks});
+      Object.assign(existing,{name,level,tier,tracks}); rec=existing;
     }else{
-      const ns={id:uid(),name,level,tier,tracks};
-      S.students.push(ns); S.me=ns.id; saveKey('lab_me',ns.id,false);
+      rec={id:uid(),name,level,tier,tracks};
+      S.students.push(rec); S.me=rec.id; saveKey('lab_me',rec.id,false);
     }
-    saveKey('lab_students', S.students, true);
+    dbSaveStudent(rec);
     closeModal(); renderWho(); render();
   });
 }
@@ -1058,9 +1200,10 @@ function openProjectModal(existing){
       blocker:$('#pBlock').value.trim(),
       links: link?[{name:'成果', url:link}]:[]
     };
-    if(existing){ Object.assign(existing, data); }
-    else{ S.projects.push({id:uid(), owner:S.me, ...data}); }
-    saveKey('lab_projects', S.projects, true);
+    let rec;
+    if(existing){ Object.assign(existing, data); rec=existing; }
+    else{ rec={id:uid(), owner:S.me, ...data}; S.projects.push(rec); }
+    dbSaveProject(rec);
     closeModal(); render();
   });
 }
