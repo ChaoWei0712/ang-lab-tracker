@@ -1608,7 +1608,7 @@ function openModModal(){
 }
 
 /* ---------- 學生活躍度後台（僅老師：需管理密碼，SHA-256 驗證，原始碼只存雜湊） ---------- */
-const ADMIN_HASH = '363f090da730361589bcce1b2533c08fbc4522d1636bfe80ae4b78fcfa6a090a';
+const ADMIN_HASH = '57d5dd69f01df4ee46def89f145ffde959b2c7e61c43b3a8369c5cdf7090bb28';
 async function sha256hex(s){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
