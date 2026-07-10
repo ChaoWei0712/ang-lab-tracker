@@ -231,6 +231,8 @@
   .card-actions button{background:none;border:none;font-size:12px;color:var(--ink-soft);padding:2px 4px}
   .card-actions button:hover{color:var(--ink)}
   .card-actions .del:hover{color:var(--danger)}
+  .card.clickable{cursor:pointer;transition:border-color .12s}
+  .card.clickable:hover{border-color:var(--trace)}
 
   /* ---------- log timeline ---------- */
   .log{position:relative;padding-left:22px;margin-bottom:16px}
@@ -598,7 +600,7 @@ async function saveKey(key, val, shared){
   }catch(e){ console.error('save failed', key, e); }
 }
 
-const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, customTracks:[], plans:{}, piChecks:{}, subs:{}, edits:{}, skills:[], modules:[], activity:{}, me:null, view:'checklist', ovOpen:null, libOpen:false, actOpen:false };
+const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, customTracks:[], plans:{}, piChecks:{}, subs:{}, edits:{}, skills:[], modules:[], activity:{}, me:null, view:'checklist', ovOpen:null, libOpen:false, actOpen:false, projOpen:null };
 
 /* ============================================================
    結構化資料庫層（Firebase 模式）
@@ -1153,6 +1155,11 @@ function openCheckModal(){
 
 /* ---------- projects view ---------- */
 function viewProjects(){
+  if(S.projOpen){
+    const p = S.projects.find(x=>x.id===S.projOpen && x.owner===S.me);
+    if(p) return viewProjectDetail(p);
+    S.projOpen = null;   // 專案已刪除或身分切換 → 回列表
+  }
   const mine = S.projects.filter(p=>p.owner===S.me);
   let cards = mine.map(projectCard).join('');
   if(!mine.length) cards = '<div class="empty"><strong>還沒有專案 No projects yet</strong>按右上角新增你負責的專案，追蹤它跑到研究管線哪一站。<br><span style="font-size:12.5px">Click the button above to add a project and track where it sits in the research pipeline.</span></div>';
@@ -1175,7 +1182,7 @@ function projectCard(p){
   const rail = STAGES.map((s,i)=>'<div class="seg'+(i<=stg?' on':'')+'"></div>').join('');
   const links = (p.links||[]).map(l=>'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">🔗 '+esc(l.name||l.url)+'</a>').join('');
   const modNames = (p.modules||[]).map(id=>{ const m=S.modules.find(x=>x.id===id); return m?m.label:''; }).filter(Boolean);
-  return '<div class="card">'
+  return '<div class="card clickable" data-open="'+p.id+'" title="點擊查看專案內容 Click for details">'
     + '<span class="status '+stt.cls+'">'+stt.label+' '+stt.en+'</span>'
     + '<h3>'+esc(p.name)+'</h3>'
     + '<div class="stage-rail">'+rail+'</div>'
@@ -1190,16 +1197,94 @@ function projectCard(p){
     + '<button class="del" data-del="'+p.id+'">刪除 Delete</button></div></div>';
 }
 function bindProjects(){
+  const bk = $('#pdBack');
+  if(bk){   // 詳情頁模式
+    bk.addEventListener('click', ()=>{ S.projOpen=null; render(); });
+    $('#pdEdit').addEventListener('click', ()=>openProjectModal(S.projects.find(p=>p.id===S.projOpen)));
+    return;
+  }
   const a=$('#addProj'); if(a) a.addEventListener('click',()=>openProjectModal());
-  document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('[data-open]').forEach(c=>c.addEventListener('click',()=>{
+    S.projOpen = c.dataset.open; render();
+  }));
+  document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
     openProjectModal(S.projects.find(p=>p.id===b.dataset.edit));
   }));
-  document.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
     if(confirm('刪除這個專案？')){
       S.projects = S.projects.filter(p=>p.id!==b.dataset.del);
       dbDeleteProject(b.dataset.del); render();
     }
   }));
+}
+
+/* ---------- 專案詳情頁：完整資料＋模組技能狀態＋此專案的週報時間軸 ---------- */
+function viewProjectDetail(p){
+  const stg = STAGES.indexOf(p.stage), stt = STATUS[p.status]||STATUS.todo;
+  const rail = STAGES.map((s,i)=>'<div class="seg'+(i<=stg?' on':'')+'"></div>').join('');
+  const links = (p.links||[]).map(l=>'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">🔗 '+esc(l.name||l.url)+'</a>').join('');
+  const st = checkState(p.owner);
+
+  let modBlock = '';
+  (p.modules||[]).forEach(mid=>{
+    const m = S.modules.find(x=>x.id===mid); if(!m) return;
+    const ks = S.skills.filter(k=>k.module===mid && !k.off);
+    const doneN = ks.filter(k=>itemVal(p.owner, k, st)===1).length;
+    modBlock += '<div class="dim"><div class="dim-title"><span class="bar"></span>'+esc(m.label)
+      + ' <span class="dim-en">'+esc(m.en||'')+'</span>'
+      + ' <span class="n">'+doneN+'/'+ks.length+'</span></div>';
+    ks.forEach(k=>{
+      const done = itemVal(p.owner, k, st)===1;
+      modBlock += '<div class="item static'+(done?' done':'')+'">'
+        + '<div class="box">'+CHECK_SVG+'</div>'
+        + '<div class="txt">'+esc(k.t)+(k.core?'<span class="tmark core">★必備 core</span>':'')
+        + (k.en?'<span class="item-en">'+esc(k.en)+'</span>':'')+'</div></div>';
+    });
+    modBlock += '</div>';
+  });
+  if(modBlock) modBlock = '<h3 style="font-family:var(--display);font-size:15px;margin:22px 0 10px">技能模組 <span class="dim-en">Module skills — tick them on My Checklist（在「我的檢核」勾選）</span></h3>'+modBlock;
+
+  const logs = S.logs.filter(l=>l.project===p.id).sort((a,b)=>b.date.localeCompare(a.date));
+  let timeline = logs.map(l=>{
+    const wk = WK_STATUS[l.mood];
+    const moodTag = wk ? '<span class="wk-tag" style="background:'+wk.bg+';color:'+wk.color+'">'+wk.label+' '+wk.en+'</span>' : '';
+    const link = l.link ? '<div class="log-row"><span class="k k-next">連結</span><a href="'+esc(l.link)+'" target="_blank" rel="noopener" style="font-family:var(--mono);font-size:12px;color:var(--trace-deep)">'+esc(l.link)+'</a></div>' : '';
+    const nextTxt = [
+      (l.plan && l.plan.length) ? l.plan.map(t=>'☑ '+esc(t)).join('<br>') : '',
+      l.next ? esc(l.next) : ''
+    ].filter(Boolean).join('<br>');
+    const doneTxt = [
+      (l.planDone && l.planDone.length) ? l.planDone.map(t=>'✅ '+esc(t)).join('<br>') : '',
+      l.done ? esc(l.done) : ''
+    ].filter(Boolean).join('<br>');
+    return '<div class="log"><div class="node"></div>'
+      + '<div class="date">'+esc(l.date)+moodTag+'</div>'
+      + (doneTxt?'<div class="log-row"><span class="k k-done">完成</span><span>'+doneTxt+'</span></div>':'')
+      + (l.block?'<div class="log-row"><span class="k k-block">卡關</span><span>'+esc(l.block)+'</span></div>':'')
+      + (nextTxt?'<div class="log-row"><span class="k k-next">下週</span><span>'+nextTxt+'</span></div>':'')
+      + link + '</div>';
+  }).join('');
+  if(!logs.length) timeline = '<div class="empty"><strong>還沒有關聯週報 No linked updates yet</strong>送週報時在「關聯專案」選這個專案，內容就會累積在這裡。<br><span style="font-size:12.5px">Pick this project in the "Related project" field when submitting a weekly update.</span></div>';
+
+  return '<div class="section-head"><div><div class="eyebrow">Project Detail</div>'
+    + '<h2>'+esc(p.name)+'</h2></div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    + '<button class="btn ghost sm" id="pdEdit">✎ 編輯 Edit</button>'
+    + '<button class="btn ghost sm" id="pdBack">← 返回列表 Back</button></div></div>'
+    + '<div class="card" style="margin-bottom:4px">'
+    + '<span class="status '+stt.cls+'">'+stt.label+' '+stt.en+'</span>'
+    + '<div class="stage-rail" style="margin-top:24px">'+rail+'</div>'
+    + '<div class="stage-lab">管線站點 Stage：'+esc(p.stage)+' '+(STAGE_EN[p.stage]||'')+'</div>'
+    + (p.milestone?'<div class="kv"><b>里程碑 Milestone：</b>'+esc(p.milestone)+'</div>':'')
+    + (p.deadline?'<div class="kv"><b>期限 Due：</b>'+esc(p.deadline)+'</div>':'')
+    + (p.blocker?'<div class="blockbox">⚠ 卡點 Blocker：'+esc(p.blocker)+'</div>':'')
+    + (links?'<div class="links">'+links+'</div>':'')
+    + '</div>'
+    + modBlock
+    + '<h3 style="font-family:var(--display);font-size:15px;margin:24px 0 14px">週報紀錄 <span class="dim-en">Weekly updates for this project</span></h3>'
+    + timeline;
 }
 
 /* ---------- weekly log view ---------- */
@@ -1474,8 +1559,8 @@ function viewHelp(){
       + '<div class="help-en">Items are listed automatically for your tier — click one to check or uncheck it. The rings show completion across Research Skills / Project Progress / Lab Duties; reaching ≥80% of your tier qualifies you for promotion, confirmed by the PI at the semester review. Use "＋ 新增檢核項 Add item" for personal goals, ✎ to edit an item\'s text, or ＋ to add sub-items — with sub-items, completion is the fraction ticked. Items marked "PI-assigned" come from your PI; you can tick them but not delete or edit them. ★ Core skills gate promotion: ≥80% overall AND all core skills done; unfinished cores carry over from earlier tiers. Module-tagged skills come from projects you join.</div></p>')
 
     + hc('📁','我的專案','My Projects',
-      '<p>為你負責的每個專案建立卡片：設定管線站點（文獻 → 背景 → 方法 → 實驗設計 → 結果討論）、狀態、里程碑與期限。卡住的時候把狀態改成「卡關」並寫下卡點，老師會在總覽看到紅字提醒。卡片會自動顯示該專案最近一次週報的日期與狀態。'
-      + '<div class="help-en">Create a card for each project you own: set its pipeline stage (Literature → Background → Methods → Experiment Design → Results & Discussion), status, milestone and deadline. When stuck, set the status to Blocked and describe the blocker — the PI sees a red flag in the overview. Each card also shows the date and status of its latest weekly update.</div></p>')
+      '<p>為你負責的每個專案建立卡片：設定管線站點（文獻 → 背景 → 方法 → 實驗設計 → 結果討論）、狀態、里程碑與期限。卡住的時候把狀態改成「卡關」並寫下卡點，老師會在總覽看到紅字提醒。卡片會自動顯示該專案最近一次週報的日期與狀態；點卡片可進入詳情頁，查看完整資料、技能模組完成狀況與這個專案的所有週報紀錄。'
+      + '<div class="help-en">Create a card for each project you own: set its pipeline stage (Literature → Background → Methods → Experiment Design → Results & Discussion), status, milestone and deadline. When stuck, set the status to Blocked and describe the blocker — the PI sees a red flag in the overview. Each card also shows the date and status of its latest weekly update; click a card to open its detail page with full info, module-skill progress and every linked weekly update.</div></p>')
 
     + hc('🗓','週報進度','Weekly Updates',
       '<p>每週送出一則週報：先選「本週狀態」（順利／稍有落後／卡關／需要討論），再選這週進度屬於哪個專案，接著填寫完成事項與卡點。「下週計畫」直接從你自己的檢核項和專案里程碑勾選，依個人進度安排。計畫會持續追蹤：沒完成的項目自動延續到下一次週報，直到你勾選「已完成」才移除，也可按 × 直接移除（更改計畫）。各模組會自動連動：計畫回報「已完成」，對應檢核項就自動打勾；週報選「卡關」時，關聯專案會自動標記卡關並記下卡點，之後回報「順利」則自動解除。送出後會自動排成時間軸；超過 9 天沒更新，總覽會出現紅字提醒。'
