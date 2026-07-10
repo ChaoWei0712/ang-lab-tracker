@@ -185,6 +185,21 @@
   .lib-row.off{opacity:.45}
   .lib-row .txt{font-size:13.5px}
 
+  /* ---------- activity heatmap (PI 後台) ---------- */
+  .act-row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:12px}
+  .act-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .hm-wrap{overflow-x:auto;padding-bottom:4px}
+  .hm{display:flex;gap:3px;width:max-content}
+  .hm-days{display:flex;flex-direction:column;gap:3px;margin-right:5px}
+  .hm-days span{width:14px;height:11px;font-family:var(--mono);font-size:9px;color:var(--ink-soft);line-height:11px}
+  .hm-col{display:flex;flex-direction:column;gap:3px}
+  .hm-c{width:11px;height:11px;border-radius:2px;background:var(--line-soft);display:block}
+  .hm-c.fut{background:transparent}
+  .hm-c.lv1{background:#a9dcb6}
+  .hm-c.lv2{background:#55ac6c}
+  .hm-c.lv3{background:#1e7a3c}
+  .hm-legend{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft)}
+
   /* ---------- projects ---------- */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 17px;position:relative}
@@ -583,7 +598,7 @@ async function saveKey(key, val, shared){
   }catch(e){ console.error('save failed', key, e); }
 }
 
-const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, customTracks:[], plans:{}, piChecks:{}, subs:{}, edits:{}, skills:[], modules:[], me:null, view:'checklist', ovOpen:null, libOpen:false };
+const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, customTracks:[], plans:{}, piChecks:{}, subs:{}, edits:{}, skills:[], modules:[], activity:{}, me:null, view:'checklist', ovOpen:null, libOpen:false, actOpen:false };
 
 /* ============================================================
    結構化資料庫層（Firebase 模式）
@@ -751,7 +766,23 @@ async function boot(){
   mergeCustomTracks();
   S.me = await loadKey('lab_me', false, null);
   if(S.me && S.me!=='__pi__' && !S.students.find(s=>s.id===S.me)) S.me = null;
+  S.activity = await loadKey('lab_activity', true, {});
+  logActivity();
   renderWho(); render();
+}
+
+/* ---------- 活躍度紀錄：學生身分開啟頁面時記一筆（同日同瀏覽分頁只記一次） ---------- */
+function logActivity(){
+  if(!S.me || S.me==='__pi__' || !me()) return;
+  const d = today();
+  try{
+    const k = 'lab_act_'+S.me+'_'+d;
+    if(sessionStorage.getItem(k)) return;
+    sessionStorage.setItem(k, '1');
+  }catch(e){}
+  if(!S.activity[S.me]) S.activity[S.me] = {};
+  S.activity[S.me][d] = (S.activity[S.me][d]||0) + 1;
+  saveKey('lab_activity', S.activity, true);
 }
 
 /* ---------------- helpers ---------------- */
@@ -859,7 +890,8 @@ function render(){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.view===S.view));
   const main = $('#main');
   if(S.view==='overview'){
-    if(S.libOpen){ main.innerHTML = viewSkillLib(); bindSkillLib(); }
+    if(S.actOpen){ main.innerHTML = viewActivity(); bindActivity(); }
+    else if(S.libOpen){ main.innerHTML = viewSkillLib(); bindSkillLib(); }
     else { main.innerHTML = viewOverview(); bindOverview(); }
     return;
   }
@@ -1366,7 +1398,9 @@ function viewOverview(){
   }).join('');
   return '<div class="section-head"><div><div class="eyebrow">PI Overview</div>'
     + '<h2>全實驗室總覽 <span class="dim-en">Lab Overview</span></h2></div>'
-    + '<button class="btn sm" id="libBtn">🛠 技能庫管理 Skill Library</button></div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    + '<button class="btn ghost sm" id="actBtn">📈 活躍度 Activity</button>'
+    + '<button class="btn sm" id="libBtn">🛠 技能庫管理 Skill Library</button></div></div>'
     + '<div class="ov-wrap"><table><thead><tr>'
     + '<th>學生 / 年資 Student</th><th>領域 Tracks</th><th>檢核達成 Progress</th><th>必備 Core</th><th>專案 Projects</th><th>最新週報 Last update</th><th>管理 Manage</th><th>匯出 Export</th>'
     + '</tr></thead><tbody>'+rows+'</tbody></table></div>'
@@ -1381,6 +1415,11 @@ function piPanel(s){
 }
 function bindOverview(){
   const lb = $('#libBtn'); if(lb) lb.addEventListener('click', ()=>{ S.libOpen=true; render(); });
+  const ab = $('#actBtn'); if(ab) ab.addEventListener('click', ()=>{
+    let ok = false;
+    try{ ok = sessionStorage.getItem('lab_admin')==='ok'; }catch(e){}
+    if(ok){ S.actOpen=true; render(); } else openAdminGate();
+  });
   document.querySelectorAll('[data-exp]').forEach(b=>
     b.addEventListener('click', ()=>exportData(b.dataset.exp)));
   document.querySelectorAll('[data-ov]').forEach(b=>b.addEventListener('click', ()=>{
@@ -1568,6 +1607,88 @@ function openModModal(){
   });
 }
 
+/* ---------- 學生活躍度後台（僅老師：需管理密碼，SHA-256 驗證，原始碼只存雜湊） ---------- */
+const ADMIN_HASH = '363f090da730361589bcce1b2533c08fbc4522d1636bfe80ae4b78fcfa6a090a';
+async function sha256hex(s){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function openAdminGate(){
+  $('#modalRoot').innerHTML =
+    '<div class="scrim" id="scrim"><div class="modal" style="max-width:360px">'
+    + '<h3>管理密碼 <span class="dim-en">Admin passcode</span></h3>'
+    + '<div class="field"><label>此頁僅供老師檢視 PI only</label>'
+    + '<input id="adPass" type="password" autocomplete="off" placeholder="管理密碼"></div>'
+    + '<div class="gate-err" id="adErr" style="margin-top:0"></div>'
+    + '<div class="modal-actions"><button class="btn ghost" id="adCancel">取消 Cancel</button>'
+    + '<button class="btn" id="adOk">進入 Enter</button></div></div></div>';
+  $('#scrim').addEventListener('click', e=>{ if(e.target.id==='scrim') closeModal(); });
+  $('#adCancel').addEventListener('click', closeModal);
+  const input = $('#adPass'); input.focus();
+  async function attempt(){
+    let h = '';
+    try{ h = await sha256hex(input.value.trim()); }
+    catch(e){ $('#adErr').textContent = '此瀏覽器環境不支援驗證（需 https）。'; return; }
+    if(h===ADMIN_HASH){
+      try{ sessionStorage.setItem('lab_admin','ok'); }catch(e){}
+      closeModal(); S.actOpen = true; render();
+    }else{
+      $('#adErr').textContent = '密碼不正確，請再試一次。';
+      input.select();
+    }
+  }
+  $('#adOk').addEventListener('click', attempt);
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') attempt(); });
+}
+/* GitHub 風格熱力圖：近 26 週，欄=週、列=週日～週六；灰=無活動，綠=有開啟 */
+function heatmap(sid){
+  const acts = S.activity[sid] || {};
+  const now = new Date();
+  const t0 = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const endDow = new Date(t0).getUTCDay();   // 0=週日
+  let html = '<div class="hm-wrap"><div class="hm">'
+    + '<div class="hm-days"><span></span><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span></div>';
+  for(let w=25; w>=0; w--){
+    html += '<div class="hm-col">';
+    for(let d=0; d<7; d++){
+      const daysAgo = w*7 + endDow - d;
+      if(daysAgo < 0){ html += '<span class="hm-c fut"></span>'; continue; }
+      const ds = new Date(t0 - daysAgo*864e5).toISOString().slice(0,10);
+      const n = acts[ds] || 0;
+      const lv = n===0 ? 0 : n===1 ? 1 : n<4 ? 2 : 3;
+      html += '<span class="hm-c'+(lv?' lv'+lv:'')+'" title="'+ds+(n?'　開啟 '+n+' 次':'　無活動')+'"></span>';
+    }
+    html += '</div>';
+  }
+  return html + '</div></div>';
+}
+function viewActivity(){
+  const rows = S.students.map(s=>{
+    const acts = S.activity[s.id] || {};
+    const dates = Object.keys(acts).sort();
+    const last = dates[dates.length-1] || null;
+    const staleDays = last ? Math.round((Date.now() - new Date(last).getTime())/864e5) : null;
+    const totalN = dates.reduce((a,d)=>a+acts[d], 0);
+    const info = last
+      ? '最後活動 '+last+(staleDays>0 ? '（'+staleDays+' 天前）' : '（今天）')+' · 累計 '+totalN+' 次開啟'
+      : '尚無紀錄 no activity yet';
+    return '<div class="act-row"><div class="act-head">'
+      + '<span class="row-name">'+esc(s.name)+'<small>'+LEVELS[s.level].label+' · '+s.tier+' '+TIER_META[s.tier].name+'</small></span>'
+      + '<span class="hint" style="margin:0'+(staleDays!==null&&staleDays>9?';color:var(--warn)':'')+'">'+info+'</span></div>'
+      + heatmap(s.id) + '</div>';
+  }).join('');
+  return '<div class="section-head"><div><div class="eyebrow">PI Dashboard</div>'
+    + '<h2>學生活躍度 <span class="dim-en">Student Activity</span></h2></div>'
+    + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    + '<span class="hm-legend">少 <span class="hm-c"></span><span class="hm-c lv1"></span><span class="hm-c lv2"></span><span class="hm-c lv3"></span> 多</span>'
+    + '<button class="btn ghost sm" id="actBack">← 回總覽 Back</button></div></div>'
+    + '<p class="hint">每格＝一天（近 26 週）。學生以自己的身分開啟網頁就會記錄一次；灰色＝當天沒有開啟。此頁需管理密碼，學生看不到內容。紀錄從功能上線日（2026-07-10）開始。</p>'
+    + (S.students.length ? rows : '<div class="empty"><strong>還沒有學生資料</strong></div>');
+}
+function bindActivity(){
+  $('#actBack').addEventListener('click', ()=>{ S.actOpen=false; render(); });
+}
+
 /* ---------------- modals ---------------- */
 function closeModal(){ $('#modalRoot').innerHTML=''; }
 function openStudentModal(existing){
@@ -1703,6 +1824,7 @@ $('#whoSelect').addEventListener('change', e=>{
   S.me = e.target.value || null;
   saveKey('lab_me', S.me, false);
   if(S.me==='__pi__') S.view='overview';
+  logActivity();
   render();
 });
 $('#addStudentBtn').addEventListener('click', ()=>openStudentModal());
