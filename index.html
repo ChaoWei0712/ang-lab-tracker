@@ -1059,12 +1059,13 @@ function showGate(){
   });
 }
 async function startApp(){
-  if(FIREBASE_PROJECT || LAB_PASSCODE){   // Firebase 模式一律啟用閘門（由 Firestore 規則驗證）
-    let saved = '';
-    try{ saved = sessionStorage.getItem('lab_gate') || ''; }catch(e){}
-    if(saved){ GATE = saved; }      // 本次瀏覽已通過，不重複詢問
-    else { await showGate(); }
-  }
+  // 通行碼閘門已停用（資料庫規則為開放讀寫）。要重新啟用：恢復下方判斷並收緊 Firestore 規則。
+  // if(FIREBASE_PROJECT || LAB_PASSCODE){
+  //   let saved = '';
+  //   try{ saved = sessionStorage.getItem('lab_gate') || ''; }catch(e){}
+  //   if(saved){ GATE = saved; }
+  //   else { await showGate(); }
+  // }
   boot();
 }
 
