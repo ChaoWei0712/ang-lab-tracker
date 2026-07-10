@@ -174,6 +174,16 @@
   /* ---------- PI check panel (overview) ---------- */
   .ov-detail>td{background:#fbfcfc;padding:14px 18px}
   .pi-panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+  .tmark.core{border-color:#f2d9a0;background:#fdf6e5;color:#9a6b0f}
+  .tmark.carry{border-color:#f2c4bd;background:#fdefec;color:#b0483a}
+  .tmark.mod{border-color:#cfe3f5;background:#eef6fd;color:#2f6ea3}
+
+  /* ---------- skill library ---------- */
+  .lib-sec{display:flex;align-items:center;gap:9px;font-family:var(--display);font-weight:600;font-size:14px;margin:20px 0 10px}
+  .lib-sec .bar{width:3px;height:15px;border-radius:2px;background:var(--trace)}
+  .lib-row{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 14px;margin-bottom:6px}
+  .lib-row.off{opacity:.45}
+  .lib-row .txt{font-size:13.5px}
 
   /* ---------- projects ---------- */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
@@ -391,89 +401,119 @@ const TIER_META = {
 const DIMS = {skill:'研究技能', project:'專案進度', citizen:'實驗室事務'};
 const DIMS_EN = {skill:'Research Skills', project:'Project Progress', citizen:'Lab Duties'};
 
-/* 檢核項：dim=維度；track 若存在則僅該領域學生顯示 */
-const CHECKS = {
-  U1:[
-    {id:'u1-safe', dim:'citizen', t:'完成實驗室安全與環境訓練', en:'Complete lab safety & environment training'},
-    {id:'u1-note', dim:'citizen', t:'建立實驗記錄本／開發日誌，每次都記錄', en:'Keep a lab notebook / dev log and record every session'},
-    {id:'u1-read', dim:'skill',   t:'讀懂 1 篇指定文獻並口頭摘要', en:'Read 1 assigned paper and give an oral summary'},
-    {id:'u1-goal', dim:'project', t:'能說明所屬專案的目標與動機', en:"Able to explain your project's goal and motivation"},
-    {id:'u1-ai',   dim:'skill', track:'ai',     t:'完成 Python 環境建置，跑通一份範例訓練程式', en:'Set up the Python environment and run a sample training script'},
-    {id:'u1-dsp',  dim:'skill', track:'dsp',    t:'完成訊號擷取環境建置，讀入並畫出一段訊號', en:'Set up signal acquisition; load and plot a signal'},
-    {id:'u1-an',   dim:'skill', track:'animal', t:'完成動物實驗倫理(IACUC)訓練，熟讀飼養 SOP', en:'Complete IACUC training; know the husbandry SOP well'},
-  ],
-  U2:[
-    {id:'u2-repro', dim:'skill',   t:'能獨立完成核心技術並產出可重現數據', en:'Run core techniques independently with reproducible data'},
-    {id:'u2-kb',    dim:'skill',   t:'會使用實驗室文獻／知識庫查資料', en:'Able to use the lab literature / knowledge base'},
-    {id:'u2-sub',   dim:'project', t:'負責專案中一個明確子任務', en:'Own a well-defined subtask in a project'},
-    {id:'u2-week',  dim:'citizen', t:'主動回報卡關，週報準時', en:'Report blockers proactively; weekly updates on time'},
-    {id:'u2-ai',    dim:'skill', track:'ai',     t:'獨立完成一輪資料前處理→訓練→評估，並用 git 管理程式', en:'Complete a preprocessing→training→evaluation cycle; manage code with git'},
-    {id:'u2-dsp',   dim:'skill', track:'dsp',    t:'實作一種濾波／特徵抽取並驗證結果', en:'Implement a filter / feature extraction and validate the result'},
-    {id:'u2-an',    dim:'skill', track:'animal', t:'獨立執行飼養與基本取樣／量測，符合動物福祉規範', en:'Handle husbandry and basic sampling/measurement per welfare rules'},
-  ],
-  U3:[
-    {id:'u3-lit',  dim:'skill',   t:'能做小範圍文獻回顧(3–5 篇)', en:'Conduct a small literature review (3–5 papers)'},
-    {id:'u3-stat', dim:'skill',   t:'能對自己數據做基本統計與判讀', en:'Basic statistics and interpretation of your own data'},
-    {id:'u3-own',  dim:'project', t:'獨立負責一個小子題並整理成果', en:'Own a small sub-topic and compile the results'},
-    {id:'u3-rep',  dim:'project', t:'完成專題書面報告與海報／口頭報告', en:'Finish the capstone written report and poster / oral presentation'},
-    {id:'u3-hand', dim:'citizen', t:'記錄本／程式可供後人接手', en:'Notebook / code ready for someone else to take over'},
-    {id:'u3-ai',   dim:'skill', track:'ai',     t:'模型結果可重現(固定隨機種子、記錄超參數與版本)', en:'Reproducible model results (fixed seeds, logged hyperparameters & versions)'},
-    {id:'u3-dsp',  dim:'skill', track:'dsp',    t:'能對訊號處理流程做量化評估(如 SNR／準確率)', en:'Quantitative evaluation of the signal pipeline (e.g. SNR / accuracy)'},
-    {id:'u3-an',   dim:'skill', track:'animal', t:'能獨立完成一次完整實驗流程並記錄異常處理', en:'Run a full experiment independently and log anomaly handling'},
-  ],
-  G1:[
-    {id:'g1-lit',  dim:'skill',   t:'完成題目文獻回顧，能畫出研究缺口', en:'Finish the topic literature review; map the research gap'},
-    {id:'g1-core', dim:'skill',   t:'掌握所屬領域全部核心技術', en:'Master all core techniques of your track'},
-    {id:'g1-prop', dim:'project', t:'完成背景綜整草稿與 proposal 雛形', en:'Draft the background synthesis and proposal outline'},
-    {id:'g1-norm', dim:'citizen', t:'數據／程式命名與版本符合實驗室規範', en:'Data / code naming and versioning follow lab conventions'},
-    {id:'g1-ai',   dim:'skill', track:'ai',     t:'建立可重現的訓練 pipeline(資料版本、實驗追蹤)', en:'Build a reproducible training pipeline (data versioning, experiment tracking)'},
-    {id:'g1-dsp',  dim:'skill', track:'dsp',    t:'能設計完整訊號處理流程並說明每一步依據', en:'Design a full signal-processing chain and justify each step'},
-    {id:'g1-an',   dim:'skill', track:'animal', t:'能規劃動物實驗分組與樣本數(含倫理考量)', en:'Plan animal groups & sample sizes (incl. ethics)'},
-  ],
-  G2:[
-    {id:'g2-ctrl', dim:'skill',   t:'能設計對照組、辨識與控制變因', en:'Design controls; identify and manage variables'},
-    {id:'g2-stat', dim:'skill',   t:'會做基礎統計檢定', en:'Perform basic statistical tests'},
-    {id:'g2-sys',  dim:'project', t:'proposal 定稿；建立實驗／開發系統', en:'Finalize the proposal; build the experiment / development system'},
-    {id:'g2-pilot',dim:'project', t:'產出初步或預試數據', en:'Produce preliminary / pilot data'},
-    {id:'g2-ment', dim:'citizen', t:'開始帶 1 位大學部', en:'Start mentoring one undergraduate'},
-    {id:'g2-ai',   dim:'skill', track:'ai',     t:'完成 baseline 模型並有可比較的評估指標', en:'Baseline model with comparable evaluation metrics'},
-    {id:'g2-dsp',  dim:'skill', track:'dsp',    t:'完成訊號採集到分析的端到端 prototype', en:'End-to-end prototype from acquisition to analysis'},
-    {id:'g2-an',   dim:'skill', track:'animal', t:'完成預試(pilot)並依結果調整方案', en:'Finish the pilot study and adjust the plan accordingly'},
-  ],
-  G3:[
-    {id:'g3-disc', dim:'skill',   t:'能將結果與文獻對照、寫出 discussion 論點', en:'Contrast results with the literature; write discussion points'},
-    {id:'g3-main', dim:'project', t:'主要結果產出', en:'Produce the main results'},
-    {id:'g3-conf', dim:'project', t:'完成期中報告；投研討會摘要或海報', en:'Mid-term report; submit a conference abstract or poster'},
-    {id:'g3-lead', dim:'citizen', t:'組會能主持自己題目的討論', en:'Lead the discussion of your topic in group meeting'},
-    {id:'g3-ai',   dim:'skill', track:'ai',     t:'完成消融／比較實驗，結果具統計意義', en:'Ablation / comparison experiments with statistical significance'},
-    {id:'g3-dsp',  dim:'skill', track:'dsp',    t:'演算法在真實資料上驗證並量化效能', en:'Validate the algorithm on real data with quantified performance'},
-    {id:'g3-an',   dim:'skill', track:'animal', t:'完成正式實驗批次，數據品質達可分析標準', en:'Complete formal experiment batches with analysis-grade data'},
-  ],
-  G4:[
-    {id:'g4-write',dim:'skill',   t:'能獨立完成論文各章', en:'Write thesis chapters independently'},
-    {id:'g4-resp', dim:'skill',   t:'能回應審查／口委意見', en:'Respond to reviewer / committee comments'},
-    {id:'g4-oral', dim:'project', t:'論文撰寫與口試', en:'Thesis writing and oral defense'},
-    {id:'g4-pub',  dim:'project', t:'投稿論文／專利／委託案結案', en:'Submit a paper / patent, or close an industry project'},
-    {id:'g4-hand', dim:'citizen', t:'完整交接(記錄、原始數據、SOP)給接手者', en:'Full handover (notes, raw data, SOPs) to your successor'},
-  ],
-  D1:[
-    {id:'d1-hyp',  dim:'skill',   t:'能自行提出研究方向與假說', en:'Propose research directions and hypotheses independently'},
-    {id:'d1-plan', dim:'skill',   t:'獨立完成完整文獻回顧與研究計畫書片段', en:'Full literature review and grant-proposal sections independently'},
-    {id:'d1-axis', dim:'project', t:'確立博士論文主軸與第一個子計畫', en:'Fix the PhD thesis axis and the first sub-project'},
-    {id:'d1-ment', dim:'citizen', t:'穩定指導碩士／大學部日常研究', en:'Regularly mentor master / undergrad students'},
-  ],
-  D2:[
-    {id:'d2-strat',dim:'skill',   t:'能設計一整套實驗／開發策略', en:'Design a complete experimental / development strategy'},
-    {id:'d2-first',dim:'project', t:'產出第一作者論文', en:'Publish a first-author paper'},
-    {id:'d2-cli',  dim:'project', t:'主導一個委託案', en:'Lead an industry-commissioned project'},
-    {id:'d2-own',  dim:'citizen', t:'成為某項技術的實驗室內部負責人', en:"Become the lab's point person for a technique"},
-  ],
-  D3:[
-    {id:'d3-rev',  dim:'skill',   t:'能協助審稿或撰寫計畫書', en:'Assist with peer review or grant writing'},
-    {id:'d3-2nd',  dim:'project', t:'第二篇第一作者論文／重要成果', en:'Second first-author paper / major output'},
-    {id:'d3-sop',  dim:'citizen', t:'建立或維護實驗室某項 SOP 與訓練新人', en:'Establish/maintain a lab SOP and train newcomers'},
-  ],
-};
+/* ============================================================
+   技能庫 Skill Library
+   技能為獨立單位：tier=階段技能（依年資自動分配）；module=實驗模組技能
+   （掛在專案上，參與該專案者才會出現）；track 若存在則僅該領域學生顯示；
+   core=必備（★，升級門檻的一部分）。
+   共享儲存 lab_skills / lab_skill_modules 為正式來源；以下 SEED 只在
+   雲端尚無資料時作為預設（內容定稿見 SKILLS.md）。
+   增減技能請用「全實驗室總覽 → 技能庫管理」，不需改程式碼。
+   ============================================================ */
+const SEED_MODULES = [
+  {id:'mod-sampling', label:'動物採樣實驗',       en:'Animal Sampling'},
+  {id:'mod-signal',   label:'聲音／訊號採集實驗', en:'Audio & Signal Acquisition'},
+  {id:'mod-ai',       label:'AI 模型開發',        en:'AI Model Development'},
+  {id:'mod-field',    label:'牧場／田間調查',     en:'Farm & Field Study'},
+];
+const SKILL_SEED = [
+  /* --- U1 入門期 --- */
+  {id:'u1-safe', tier:'U1', dim:'citizen', core:true, t:'完成實驗室安全與環境訓練', en:'Complete lab safety & environment training'},
+  {id:'u1-note', tier:'U1', dim:'citizen', core:true, t:'建立實驗記錄本／開發日誌，每次都記錄', en:'Keep a lab notebook / dev log and record every session'},
+  {id:'u1-read', tier:'U1', dim:'skill',   core:true, t:'讀懂 1 篇指定文獻並口頭摘要', en:'Read 1 assigned paper and give an oral summary'},
+  {id:'u1-cite', tier:'U1', dim:'skill',   t:'正確引用文獻、了解抄襲界線', en:'Cite sources correctly; understand plagiarism boundaries'},
+  {id:'u1-goal', tier:'U1', dim:'project', core:true, t:'能說明所屬專案的目標與動機', en:"Able to explain your project's goal and motivation"},
+  {id:'u1-an',   tier:'U1', dim:'skill', track:'animal', core:true, t:'完成動物實驗倫理(IACUC)訓練，熟讀飼養 SOP', en:'Complete IACUC training; know the husbandry SOP well'},
+  {id:'u1-basic',tier:'U1', dim:'skill', track:'animal', core:true, t:'在學長姊指導下正確操作基本實驗（保定、餵飼、清潔）', en:'Perform basic animal procedures under supervision (restraint, feeding, cleaning)'},
+  {id:'u1-ai',   tier:'U1', dim:'skill', track:'ai',     core:true, t:'完成 Python 環境建置，跑通一份範例訓練程式', en:'Set up the Python environment and run a sample training script'},
+  {id:'u1-dsp',  tier:'U1', dim:'skill', track:'dsp',    core:true, t:'完成訊號擷取環境建置，讀入並畫出一段訊號', en:'Set up signal acquisition; load and plot a signal'},
+  /* --- U2 上手期 --- */
+  {id:'u2-repro', tier:'U2', dim:'skill',   core:true, t:'能獨立完成核心技術並產出可重現數據', en:'Run core techniques independently with reproducible data'},
+  {id:'u2-kb',    tier:'U2', dim:'skill',   core:true, t:'會使用實驗室文獻／知識庫查資料', en:'Able to use the lab literature / knowledge base'},
+  {id:'u2-data',  tier:'U2', dim:'skill',   t:'能把原始數據整理成可分析格式（試算表／程式）', en:'Organize raw data into analyzable form'},
+  {id:'u2-sub',   tier:'U2', dim:'project', core:true, t:'負責專案中一個明確子任務', en:'Own a well-defined subtask in a project'},
+  {id:'u2-week',  tier:'U2', dim:'citizen', core:true, t:'主動回報卡關，週報準時', en:'Report blockers proactively; weekly updates on time'},
+  {id:'u2-ai',    tier:'U2', dim:'skill', track:'ai',     core:true, t:'獨立完成一輪資料前處理→訓練→評估，並用 git 管理程式', en:'Complete a preprocessing→training→evaluation cycle; manage code with git'},
+  {id:'u2-dsp',   tier:'U2', dim:'skill', track:'dsp',    core:true, t:'實作一種濾波／特徵抽取並驗證結果', en:'Implement a filter / feature extraction and validate the result'},
+  {id:'u2-an',    tier:'U2', dim:'skill', track:'animal', core:true, t:'獨立執行飼養與基本取樣／量測，符合動物福祉規範', en:'Handle husbandry and basic sampling/measurement per welfare rules'},
+  /* --- U3 專題期 --- */
+  {id:'u3-lit',  tier:'U3', dim:'skill',   core:true, t:'能做小範圍文獻回顧(3–5 篇)', en:'Conduct a small literature review (3–5 papers)'},
+  {id:'u3-stat', tier:'U3', dim:'skill',   core:true, t:'能對自己數據做基本統計與判讀（敘述統計、t 檢定）', en:'Basic statistics & interpretation (descriptive stats, t-test)'},
+  {id:'u3-own',  tier:'U3', dim:'project', core:true, t:'獨立負責一個小子題並整理成果', en:'Own a small sub-topic and compile the results'},
+  {id:'u3-rep',  tier:'U3', dim:'project', core:true, t:'完成專題書面報告與海報／口頭報告', en:'Finish the capstone written report and poster / oral presentation'},
+  {id:'u3-hand', tier:'U3', dim:'citizen', core:true, t:'記錄本／程式可供後人接手', en:'Notebook / code ready for someone else to take over'},
+  {id:'u3-ai',   tier:'U3', dim:'skill', track:'ai',     t:'模型結果可重現(固定隨機種子、記錄超參數與版本)', en:'Reproducible model results (fixed seeds, logged hyperparameters & versions)'},
+  {id:'u3-dsp',  tier:'U3', dim:'skill', track:'dsp',    t:'能對訊號處理流程做量化評估(如 SNR／準確率)', en:'Quantitative evaluation of the signal pipeline (e.g. SNR / accuracy)'},
+  {id:'u3-an',   tier:'U3', dim:'skill', track:'animal', t:'能獨立完成一次完整實驗流程並記錄異常處理', en:'Run a full experiment independently and log anomaly handling'},
+  /* --- G1 定位期 --- */
+  {id:'g1-lit',  tier:'G1', dim:'skill',   core:true, t:'完成題目文獻回顧，能畫出研究缺口', en:'Finish the topic literature review; map the research gap'},
+  {id:'g1-hyp',  tier:'G1', dim:'skill',   core:true, t:'能提出可驗證的研究假說', en:'Formulate a testable hypothesis'},
+  {id:'g1-core', tier:'G1', dim:'skill',   core:true, t:'掌握所屬領域全部核心技術', en:'Master all core techniques of your track'},
+  {id:'g1-prop', tier:'G1', dim:'project', core:true, t:'完成背景綜整草稿與 proposal 雛形', en:'Draft the background synthesis and proposal outline'},
+  {id:'g1-norm', tier:'G1', dim:'citizen', core:true, t:'數據／程式命名與版本符合實驗室規範', en:'Data / code naming and versioning follow lab conventions'},
+  {id:'g1-ai',   tier:'G1', dim:'skill', track:'ai',     t:'建立可重現的訓練 pipeline(資料版本、實驗追蹤)', en:'Build a reproducible training pipeline (data versioning, experiment tracking)'},
+  {id:'g1-dsp',  tier:'G1', dim:'skill', track:'dsp',    t:'能設計完整訊號處理流程並說明每一步依據', en:'Design a full signal-processing chain and justify each step'},
+  {id:'g1-an',   tier:'G1', dim:'skill', track:'animal', t:'能規劃動物實驗分組與樣本數(含倫理考量)', en:'Plan animal groups & sample sizes (incl. ethics)'},
+  /* --- G2 建置期 --- */
+  {id:'g2-ctrl', tier:'G2', dim:'skill',   core:true, t:'能設計實驗：對照組、辨識與控制變因', en:'Design experiments: controls, identify & manage variables'},
+  {id:'g2-stat', tier:'G2', dim:'skill',   core:true, t:'會做基礎統計檢定並正確解讀（ANOVA、迴歸等）', en:'Run and interpret statistical tests (ANOVA, regression)'},
+  {id:'g2-soft', tier:'G2', dim:'skill',   t:'能用統計軟體／程式完成分析（R／Python／SPSS）', en:'Analyze data with statistical software (R / Python / SPSS)'},
+  {id:'g2-sys',  tier:'G2', dim:'project', core:true, t:'proposal 定稿；建立實驗／開發系統', en:'Finalize the proposal; build the experiment / development system'},
+  {id:'g2-pilot',tier:'G2', dim:'project', core:true, t:'產出初步或預試數據', en:'Produce preliminary / pilot data'},
+  {id:'g2-ment', tier:'G2', dim:'citizen', core:true, t:'開始帶 1 位大學部', en:'Start mentoring one undergraduate'},
+  {id:'g2-ai',   tier:'G2', dim:'skill', track:'ai',     t:'完成 baseline 模型並有可比較的評估指標', en:'Baseline model with comparable evaluation metrics'},
+  {id:'g2-dsp',  tier:'G2', dim:'skill', track:'dsp',    t:'完成訊號採集到分析的端到端 prototype', en:'End-to-end prototype from acquisition to analysis'},
+  {id:'g2-an',   tier:'G2', dim:'skill', track:'animal', t:'完成預試(pilot)並依結果調整方案', en:'Finish the pilot study and adjust the plan accordingly'},
+  /* --- G3 產出期 --- */
+  {id:'g3-disc', tier:'G3', dim:'skill',   core:true, t:'能將結果與文獻對照、寫出 discussion 論點', en:'Contrast results with the literature; write discussion points'},
+  {id:'g3-fig',  tier:'G3', dim:'skill',   t:'能製作出版等級的圖表', en:'Produce publication-quality figures'},
+  {id:'g3-main', tier:'G3', dim:'project', core:true, t:'主要結果產出', en:'Produce the main results'},
+  {id:'g3-conf', tier:'G3', dim:'project', core:true, t:'完成期中報告；投研討會摘要或海報', en:'Mid-term report; submit a conference abstract or poster'},
+  {id:'g3-lead', tier:'G3', dim:'citizen', core:true, t:'組會能主持自己題目的討論', en:'Lead the discussion of your topic in group meeting'},
+  {id:'g3-ai',   tier:'G3', dim:'skill', track:'ai',     t:'完成消融／比較實驗，結果具統計意義', en:'Ablation / comparison experiments with statistical significance'},
+  {id:'g3-dsp',  tier:'G3', dim:'skill', track:'dsp',    t:'演算法在真實資料上驗證並量化效能', en:'Validate the algorithm on real data with quantified performance'},
+  {id:'g3-an',   tier:'G3', dim:'skill', track:'animal', t:'完成正式實驗批次，數據品質達可分析標準', en:'Complete formal experiment batches with analysis-grade data'},
+  /* --- G4 收束期 --- */
+  {id:'g4-write',tier:'G4', dim:'skill',   core:true, t:'能獨立完成論文各章', en:'Write thesis chapters independently'},
+  {id:'g4-resp', tier:'G4', dim:'skill',   core:true, t:'能回應審查／口委意見', en:'Respond to reviewer / committee comments'},
+  {id:'g4-oral', tier:'G4', dim:'project', core:true, t:'論文撰寫與口試', en:'Thesis writing and oral defense'},
+  {id:'g4-pub',  tier:'G4', dim:'project', t:'投稿論文／專利／委託案結案', en:'Submit a paper / patent, or close an industry project'},
+  {id:'g4-hand', tier:'G4', dim:'citizen', core:true, t:'完整交接(記錄、原始數據、SOP)給接手者', en:'Full handover (notes, raw data, SOPs) to your successor'},
+  /* --- D1 探索期 --- */
+  {id:'d1-hyp',  tier:'D1', dim:'skill',   core:true, t:'能自行提出研究方向與假說', en:'Propose research directions and hypotheses independently'},
+  {id:'d1-plan', tier:'D1', dim:'skill',   core:true, t:'獨立完成完整文獻回顧與研究計畫書片段', en:'Full literature review and grant-proposal sections independently'},
+  {id:'d1-axis', tier:'D1', dim:'project', core:true, t:'確立博士論文主軸與第一個子計畫', en:'Fix the PhD thesis axis and the first sub-project'},
+  {id:'d1-ment', tier:'D1', dim:'citizen', core:true, t:'穩定指導碩士／大學部日常研究', en:'Regularly mentor master / undergrad students'},
+  /* --- D2 深化期 --- */
+  {id:'d2-strat',tier:'D2', dim:'skill',   core:true, t:'能設計一整套實驗／開發策略', en:'Design a complete experimental / development strategy'},
+  {id:'d2-first',tier:'D2', dim:'project', core:true, t:'產出第一作者論文', en:'Publish a first-author paper'},
+  {id:'d2-cli',  tier:'D2', dim:'project', t:'主導一個委託案', en:'Lead an industry-commissioned project'},
+  {id:'d2-own',  tier:'D2', dim:'citizen', core:true, t:'成為某項技術的實驗室內部負責人', en:"Become the lab's point person for a technique"},
+  /* --- D3 領導期 --- */
+  {id:'d3-rev',  tier:'D3', dim:'skill',   core:true, t:'能協助審稿或撰寫計畫書', en:'Assist with peer review or grant writing'},
+  {id:'d3-2nd',  tier:'D3', dim:'project', t:'第二篇第一作者論文／重要成果', en:'Second first-author paper / major output'},
+  {id:'d3-sop',  tier:'D3', dim:'citizen', core:true, t:'建立或維護實驗室某項 SOP 與訓練新人', en:'Establish/maintain a lab SOP and train newcomers'},
+  {id:'d3-res',  tier:'D3', dim:'citizen', t:'能規劃與管理實驗室資源（耗材、儀器、時程）', en:'Plan and manage lab resources (supplies, equipment, schedule)'},
+  /* --- 模組：動物採樣實驗 --- */
+  {id:'ms-blood', module:'mod-sampling', dim:'skill', core:true, t:'血液／體液採樣與樣本前處理', en:'Blood / fluid sampling and sample preparation'},
+  {id:'ms-phys',  module:'mod-sampling', dim:'skill', core:true, t:'生理數據量測（體溫、體重、心跳等）', en:'Physiological measurements (temp, weight, heart rate)'},
+  {id:'ms-label', module:'mod-sampling', dim:'skill', core:true, t:'樣本編號、記錄與冷鏈保存', en:'Sample labeling, records and cold-chain storage'},
+  {id:'ms-anom',  module:'mod-sampling', dim:'skill', t:'採樣異常（動物緊迫等）的辨識與處置', en:'Recognize and handle sampling anomalies (animal stress)'},
+  /* --- 模組：聲音／訊號採集實驗 --- */
+  {id:'mg-rig',  module:'mod-signal', dim:'skill', core:true, t:'錄音／感測設備架設與校正', en:'Set up and calibrate recording / sensing equipment'},
+  {id:'mg-sop',  module:'mod-signal', dim:'skill', core:true, t:'依 SOP 完成現場採集並記錄環境條件', en:'Follow the acquisition SOP; log field conditions'},
+  {id:'mg-file', module:'mod-signal', dim:'skill', core:true, t:'音檔／訊號檔案的整理與標註', en:'Organize and annotate audio / signal files'},
+  {id:'mg-qc',   module:'mod-signal', dim:'skill', t:'採集品質即時檢查（雜訊、斷訊）', en:'On-site quality checks (noise, dropouts)'},
+  /* --- 模組：AI 模型開發 --- */
+  {id:'ma-label', module:'mod-ai', dim:'skill', core:true, t:'資料標註與標註品質控管', en:'Data annotation and annotation QC'},
+  {id:'ma-train', module:'mod-ai', dim:'skill', core:true, t:'模型訓練、調參與實驗記錄', en:'Model training, tuning and experiment logging'},
+  {id:'ma-eval',  module:'mod-ai', dim:'skill', core:true, t:'評估指標選擇與結果報告', en:'Choose evaluation metrics; report results'},
+  {id:'ma-deploy',module:'mod-ai', dim:'skill', t:'模型交付／部署（打包、文件）', en:'Model delivery / deployment (packaging, docs)'},
+  /* --- 模組：牧場／田間調查 --- */
+  {id:'mf-sheet',  module:'mod-field', dim:'skill', core:true, t:'調查表／記錄表設計與試填', en:'Design and pilot survey / record sheets'},
+  {id:'mf-collect',module:'mod-field', dim:'skill', core:true, t:'現場資料收集與當日回傳整理', en:'Collect field data; same-day upload and tidy-up'},
+  {id:'mf-comm',   module:'mod-field', dim:'skill', t:'與場方人員溝通協調', en:'Communicate and coordinate with farm staff'},
+];
 
 const STAGES = ['文獻','背景','方法','實驗設計','結果討論'];
 const STAGE_EN = {'文獻':'Literature','背景':'Background','方法':'Methods','實驗設計':'Experiment Design','結果討論':'Results & Discussion'};
@@ -543,7 +583,7 @@ async function saveKey(key, val, shared){
   }catch(e){ console.error('save failed', key, e); }
 }
 
-const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, customTracks:[], plans:{}, piChecks:{}, subs:{}, edits:{}, me:null, view:'checklist', ovOpen:null };
+const S = { students:[], checklists:{}, projects:[], logs:[], custom:{}, customTracks:[], plans:{}, piChecks:{}, subs:{}, edits:{}, skills:[], modules:[], me:null, view:'checklist', ovOpen:null, libOpen:false };
 
 /* ============================================================
    結構化資料庫層（Firebase 模式）
@@ -622,7 +662,7 @@ async function dbDeleteStudent(id){
 }
 async function dbSaveProject(p){
   if(FB()) await fsSaveDoc('project_'+p.id, {type:'project', owner:p.owner, name:p.name, stage:p.stage, status:p.status,
-    milestone:p.milestone||'', deadline:p.deadline||'', blocker:p.blocker||'', links:p.links||[]});
+    milestone:p.milestone||'', deadline:p.deadline||'', blocker:p.blocker||'', links:p.links||[], modules:p.modules||[]});
   else await saveKey('lab_projects', S.projects, true);
 }
 async function dbDeleteProject(id){
@@ -674,7 +714,7 @@ async function dbLoadAll(){
     S.students=[]; S.projects=[]; S.logs=[]; S.checklists={}; S.custom={}; S.customTracks=[]; S.plans={};
     docs.forEach(d=>{
       if(d.type==='student') S.students.push({id:d._id.slice(8), name:d.name||'', level:d.level||'undergrad', tier:d.tier||'U1', tracks:d.tracks||[]});
-      else if(d.type==='project') S.projects.push({id:d._id.slice(8), owner:d.owner||'', name:d.name||'', stage:d.stage||STAGES[0], status:d.status||'todo', milestone:d.milestone||'', deadline:d.deadline||'', blocker:d.blocker||'', links:d.links||[]});
+      else if(d.type==='project') S.projects.push({id:d._id.slice(8), owner:d.owner||'', name:d.name||'', stage:d.stage||STAGES[0], status:d.status||'todo', milestone:d.milestone||'', deadline:d.deadline||'', blocker:d.blocker||'', links:d.links||[], modules:d.modules||[]});
       else if(d.type==='log') S.logs.push({id:d._id.slice(4), owner:d.owner||'', date:d.date||'', mood:d.mood||'', project:d.project||'', plan:d.plan||[], planDone:d.planDone||[], done:d.done||'', block:d.block||'', next:d.next||'', link:d.link||''});
       else if(d.type==='checklist') S.checklists[d.owner] = d.checks||{};
       else if(d.type==='customchecks') S.custom[d.owner] = d.items||[];
@@ -702,6 +742,12 @@ async function boot(){
   S.piChecks = await loadKey('lab_pi_checks', true, {});
   S.subs     = await loadKey('lab_check_subs', true, {});
   S.edits    = await loadKey('lab_check_edits', true, {});
+  /* 技能庫：雲端有資料就用雲端；還沒有就用內建 SEED（第一次在技能庫管理
+     做任何修改時才會整份寫入，避免網路暫時失敗時覆蓋掉正式資料） */
+  const lib  = await loadKey('lab_skills', true, null);
+  const mods = await loadKey('lab_skill_modules', true, null);
+  S.skills  = (lib  && lib.length)  ? lib  : SKILL_SEED.map(k=>({...k}));
+  S.modules = (mods && mods.length) ? mods : SEED_MODULES.map(m=>({...m}));
   mergeCustomTracks();
   S.me = await loadKey('lab_me', false, null);
   if(S.me && S.me!=='__pi__' && !S.students.find(s=>s.id===S.me)) S.me = null;
@@ -716,12 +762,35 @@ const me = () => S.students.find(s=>s.id===S.me) || null;
 const today = () => new Date().toISOString().slice(0,10);
 
 function visibleChecks(student){
-  const items = (CHECKS[student.tier] || []).filter(it => !it.track || student.tracks.includes(it.track));
+  const st = S.checklists[student.id] || {};
+  const trackOk = k => !k.track || student.tracks.includes(k.track);
+  const active = S.skills.filter(k=>!k.off);
+  // 1. 階段技能：符合目前年資（與領域）
+  const stage = active.filter(k=>k.tier===student.tier && trackOk(k));
+  // 2. 前階段未完成的必備技能自動帶入（同一學制內）
+  const lvlTiers = (LEVELS[student.level]||{tiers:[]}).tiers;
+  const ti = lvlTiers.indexOf(student.tier);
+  const carry = active.filter(k=>k.core && k.tier
+      && lvlTiers.indexOf(k.tier)>-1 && lvlTiers.indexOf(k.tier)<ti
+      && trackOk(k) && itemVal(student.id, k, st)!==1)
+    .map(k=>({...k, carry:true}));
+  // 3. 模組技能：學生擁有的專案掛了哪些技能模組
+  const myMods = new Set();
+  S.projects.forEach(p=>{ if(p.owner===student.id) (p.modules||[]).forEach(m=>myMods.add(m)); });
+  const modSkills = active.filter(k=>k.module && myMods.has(k.module));
+  // 4. 教授指定＋自訂＋主項文字覆蓋
   const pi    = (S.piChecks[student.id] || []).map(c => ({...c, pi:true}));
   const extra = (S.custom[student.id] || []).map(c => ({...c, custom:true}));
-  const ed = S.edits[student.id] || {};   // 內建主項的文字修改覆蓋
-  return items.concat(pi).concat(extra)
+  const ed = S.edits[student.id] || {};
+  return carry.concat(stage).concat(modSkills).concat(pi).concat(extra)
     .map(it => ed[it.id] ? {...it, t:ed[it.id], edited:true} : it);
+}
+/* 必備技能達成（僅階段＋帶入的必備項；模組必備不擋升級） */
+function coreStat(student){
+  const st = checkState(student.id);
+  const items = visibleChecks(student).filter(it=>it.core && it.tier && !it.module);
+  const done = items.filter(it=>itemVal(student.id, it, st)===1).length;
+  return [done, items.length];
 }
 function checkState(sid){ return S.checklists[sid] || {}; }
 function subsOf(sid, itemId){ return (S.subs[sid] || {})[itemId] || []; }
@@ -789,7 +858,11 @@ function renderWho(){
 function render(){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.view===S.view));
   const main = $('#main');
-  if(S.view==='overview'){ main.innerHTML = viewOverview(); bindOverview(); return; }
+  if(S.view==='overview'){
+    if(S.libOpen){ main.innerHTML = viewSkillLib(); bindSkillLib(); }
+    else { main.innerHTML = viewOverview(); bindOverview(); }
+    return;
+  }
   if(S.view==='help'){ main.innerHTML = viewHelp(); return; }
   if(S.me==='__pi__'){ // PI on a personal tab → nudge to overview
     main.innerHTML = '<div class="empty"><strong>老師模式 PI Mode</strong>請切換到「全實驗室總覽」查看所有學生進度，或在上方身分選單改選一位學生。<br><span style="font-size:12.5px">Switch to "Lab Overview" to see everyone, or pick a student in the identity menu above.</span></div>';
@@ -830,9 +903,10 @@ function viewChecklist(){
   const body = checkListHTML(s, 'student');
 
   const overall = pct(by.all);
-  const note = overall>=80
-    ? '<div class="blockbox" style="background:#eef7f1;border-color:#cfe8dc;color:#2f7d58">已達 '+overall+'%，達到升級門檻（≥80%）。可在學期評核與老師確認升級。<br><span style="font-size:11.5px">You reached '+overall+'% — the ≥80% promotion threshold. Confirm the promotion with your PI at the semester review.</span></div>'
-    : '<div class="hint" style="margin-top:16px">升級門檻為單一年資檢核項達成 ≥ 80%，並於學期評核由老師確認。目前 '+overall+'%。<br>Promotion requires ≥80% of your tier checklist, confirmed by the PI at the semester review. Currently at '+overall+'%.</div>';
+  const cs = coreStat(s), coreOk = cs[1]===0 || cs[0]===cs[1];
+  const note = (overall>=80 && coreOk)
+    ? '<div class="blockbox" style="background:#eef7f1;border-color:#cfe8dc;color:#2f7d58">已達升級門檻：總達成 '+overall+'%（≥80%）且「★ 必備」技能 '+cs[0]+'/'+cs[1]+' 全數完成。可在學期評核與老師確認升級。<br><span style="font-size:11.5px">Promotion threshold met: '+overall+'% overall (≥80%) and all core skills done ('+cs[0]+'/'+cs[1]+'). Confirm with your PI at the semester review.</span></div>'
+    : '<div class="hint" style="margin-top:16px">升級門檻：總達成 ≥ 80% 且「★ 必備」技能全數完成，並於學期評核由老師確認。目前總達成 '+overall+'%、必備 '+cs[0]+'/'+cs[1]+'。<br>Promotion requires ≥80% overall AND all ★ core skills done, confirmed by the PI at the semester review. Currently '+overall+'% overall, core '+cs[0]+'/'+cs[1]+'.</div>';
 
   return '<div class="section-head"><div><div class="eyebrow">Growth Checklist</div>'
     + '<h2>我的檢核項 <span class="dim-en">My Checklist</span></h2></div><div style="display:flex;gap:8px;flex-wrap:wrap">'
@@ -871,6 +945,10 @@ function itemHTML(s, it, st, mode){
   const pm = it.pi ? '<span class="tmark pi">教授指定 PI</span>' : '';
   const cm = it.custom ? '<span class="tmark">自訂 custom</span>' : '';
   const em2 = it.edited ? '<span class="tmark">已修改 edited</span>' : '';
+  const coreTag = it.core ? '<span class="tmark core">★必備 core</span>' : '';
+  const carryTag = it.carry ? '<span class="tmark carry">'+it.tier+' 未完成 carry-over</span>' : '';
+  const modItem = it.module ? S.modules.find(x=>x.id===it.module) : null;
+  const modTag = modItem ? '<span class="tmark mod">'+esc(modItem.label)+'</span>' : '';
   const frac = subs.length ? '<span class="frac">'+subs.filter(sb=>st[sb.id]).length+'/'+subs.length+'</span>' : '';
   const en = (it.en && !it.edited) ? '<span class="item-en">'+esc(it.en)+'</span>' : '';
   // 有子項時主項狀態由子項推導，不能直接點；老師面板一律唯讀（由學生自己勾）
@@ -885,7 +963,7 @@ function itemHTML(s, it, st, mode){
   let h = '<div class="item-wrap">'
     + '<div class="item'+(done?' done':'')+(canToggle?'':' static')+'"'+(canToggle?' data-id="'+it.id+'"':'')+'>'
     + '<div class="box">'+CHECK_SVG+'</div>'
-    + '<div class="txt">'+esc(it.t)+tk+pm+cm+em2+frac+en+'</div>'
+    + '<div class="txt">'+esc(it.t)+coreTag+carryTag+modTag+tk+pm+cm+em2+frac+en+'</div>'
     + '<div class="item-btns">'+btns+'</div></div>';
   if(subs.length){
     h += '<div class="subs">';
@@ -1064,11 +1142,13 @@ function projectCard(p){
   const stg = STAGES.indexOf(p.stage); const stt = STATUS[p.status]||STATUS.todo;
   const rail = STAGES.map((s,i)=>'<div class="seg'+(i<=stg?' on':'')+'"></div>').join('');
   const links = (p.links||[]).map(l=>'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">🔗 '+esc(l.name||l.url)+'</a>').join('');
+  const modNames = (p.modules||[]).map(id=>{ const m=S.modules.find(x=>x.id===id); return m?m.label:''; }).filter(Boolean);
   return '<div class="card">'
     + '<span class="status '+stt.cls+'">'+stt.label+' '+stt.en+'</span>'
     + '<h3>'+esc(p.name)+'</h3>'
     + '<div class="stage-rail">'+rail+'</div>'
     + '<div class="stage-lab">管線站點 Stage：'+esc(p.stage)+' '+(STAGE_EN[p.stage]||'')+'</div>'
+    + (modNames.length?'<div class="kv"><b>技能模組 Modules：</b>'+esc(modNames.join('、'))+'</div>':'')
     + (p.milestone?'<div class="kv"><b>里程碑 Milestone：</b>'+esc(p.milestone)+'</div>':'')
     + (p.deadline?'<div class="kv"><b>期限 Due：</b>'+esc(p.deadline)+'</div>':'')
     + projLastUpdate(p)
@@ -1267,11 +1347,13 @@ function viewOverview(){
     const stale = lastLog ? (Date.now()-new Date(lastLog.date).getTime())/864e5 : 999;
     const tm = TIER_META[s.tier];
     const trackChips = s.tracks.map(t=>trackChip(t,true)).join(' ');
+    const cs = coreStat(s);
     const open = S.ovOpen===s.id;
     let row = '<tr>'
       + '<td><span class="row-name">'+esc(s.name)+'<small>'+LEVELS[s.level].label+' '+LEVELS[s.level].en+' · '+s.tier+' '+tm.name+'</small></span></td>'
       + '<td>'+trackChips+'</td>'
       + '<td><span class="mini-bar"><span style="width:'+p+'%"></span></span> <span style="font-family:var(--mono);font-size:12px">'+p+'%</span></td>'
+      + '<td><span style="font-family:var(--mono);font-size:12px">'+cs[0]+'/'+cs[1]+'</span>'+(cs[1]&&cs[0]===cs[1]?' <span style="color:var(--go)">✓</span>':(cs[1]?' <span class="flag">未齊</span>':''))+'</td>'
       + '<td>'+projs.length+' 案'+(blocked?' <span class="flag">· '+blocked+' 卡關 blocked</span>':'')+'</td>'
       + '<td>'+(lastLog?('<span style="font-family:var(--mono);font-size:12px">'+lastLog.date+'</span>'
           +(WK_STATUS[lastLog.mood]?'<span class="wk-tag" style="background:'+WK_STATUS[lastLog.mood].bg+';color:'+WK_STATUS[lastLog.mood].color+'">'+WK_STATUS[lastLog.mood].label+'</span>':'')
@@ -1279,13 +1361,14 @@ function viewOverview(){
       + '<td><button class="btn ghost sm" data-ov="'+s.id+'">'+(open?'收合 Close':'檢核管理 Manage')+'</button></td>'
       + '<td><button class="btn ghost sm" data-exp="'+s.id+'" title="匯出 '+esc(s.name)+' 的歷史資料 Export history">📥</button></td>'
       + '</tr>';
-    if(open) row += '<tr class="ov-detail"><td colspan="7">'+piPanel(s)+'</td></tr>';
+    if(open) row += '<tr class="ov-detail"><td colspan="8">'+piPanel(s)+'</td></tr>';
     return row;
   }).join('');
   return '<div class="section-head"><div><div class="eyebrow">PI Overview</div>'
-    + '<h2>全實驗室總覽 <span class="dim-en">Lab Overview</span></h2></div></div>'
+    + '<h2>全實驗室總覽 <span class="dim-en">Lab Overview</span></h2></div>'
+    + '<button class="btn sm" id="libBtn">🛠 技能庫管理 Skill Library</button></div>'
     + '<div class="ov-wrap"><table><thead><tr>'
-    + '<th>學生 / 年資 Student</th><th>領域 Tracks</th><th>檢核達成 Progress</th><th>專案 Projects</th><th>最新週報 Last update</th><th>管理 Manage</th><th>匯出 Export</th>'
+    + '<th>學生 / 年資 Student</th><th>領域 Tracks</th><th>檢核達成 Progress</th><th>必備 Core</th><th>專案 Projects</th><th>最新週報 Last update</th><th>管理 Manage</th><th>匯出 Export</th>'
     + '</tr></thead><tbody>'+rows+'</tbody></table></div>'
     + '<p class="hint">紅字提示需要關注：專案卡關、或超過 9 天沒有更新週報。點「檢核管理」可為該學生新增指定檢核項、子項目或編輯指定項。<br>Red text needs attention: a blocked project, or no weekly update for 9+ days. Click "檢核管理 Manage" to assign checks or sub-items to a student.</p>';
 }
@@ -1297,6 +1380,7 @@ function piPanel(s){
     + checkListHTML(s, 'pi');
 }
 function bindOverview(){
+  const lb = $('#libBtn'); if(lb) lb.addEventListener('click', ()=>{ S.libOpen=true; render(); });
   document.querySelectorAll('[data-exp]').forEach(b=>
     b.addEventListener('click', ()=>exportData(b.dataset.exp)));
   document.querySelectorAll('[data-ov]').forEach(b=>b.addEventListener('click', ()=>{
@@ -1347,8 +1431,8 @@ function viewHelp(){
       + '</ol>')
 
     + hc('✅','我的檢核','My Checklist',
-      '<p>系統會依你的年資階段自動列出應達成的項目，點一下即可打勾或取消。上方圓環顯示「研究技能／專案進度／實驗室事務」三個維度的達成率；單一年資達成 ≥ 80% 即符合升級門檻，由老師在學期評核時確認。也可以用「＋ 新增檢核項」加入自己的目標、按「✎」編輯項目文字，或按「＋」為任何項目加上子項目——有子項時該項的完成度改由子項完成比例決定。標記「教授指定」的項目由老師在總覽指派，你可以勾選完成但不能刪除或編輯。'
-      + '<div class="help-en">Items are listed automatically for your tier — click one to check or uncheck it. The rings show completion across Research Skills / Project Progress / Lab Duties; reaching ≥80% of your tier qualifies you for promotion, confirmed by the PI at the semester review. Use "＋ 新增檢核項 Add item" for personal goals, ✎ to edit an item\'s text, or ＋ to add sub-items — with sub-items, completion is the fraction ticked. Items marked "PI-assigned" come from your PI; you can tick them but not delete or edit them.</div></p>')
+      '<p>系統會依你的年資階段自動列出應達成的項目，點一下即可打勾或取消。上方圓環顯示「研究技能／專案進度／實驗室事務」三個維度的達成率；單一年資達成 ≥ 80% 即符合升級門檻，由老師在學期評核時確認。也可以用「＋ 新增檢核項」加入自己的目標、按「✎」編輯項目文字，或按「＋」為任何項目加上子項目——有子項時該項的完成度改由子項完成比例決定。標記「教授指定」的項目由老師在總覽指派，你可以勾選完成但不能刪除或編輯。「★ 必備」是各階段核心技能：升級需總達成 ≥80% 且必備全數完成，上一階段沒完成的必備會自動帶到下一階段；掛「模組」標記的技能來自你參與的專案。'
+      + '<div class="help-en">Items are listed automatically for your tier — click one to check or uncheck it. The rings show completion across Research Skills / Project Progress / Lab Duties; reaching ≥80% of your tier qualifies you for promotion, confirmed by the PI at the semester review. Use "＋ 新增檢核項 Add item" for personal goals, ✎ to edit an item\'s text, or ＋ to add sub-items — with sub-items, completion is the fraction ticked. Items marked "PI-assigned" come from your PI; you can tick them but not delete or edit them. ★ Core skills gate promotion: ≥80% overall AND all core skills done; unfinished cores carry over from earlier tiers. Module-tagged skills come from projects you join.</div></p>')
 
     + hc('📁','我的專案','My Projects',
       '<p>為你負責的每個專案建立卡片：設定管線站點（文獻 → 背景 → 方法 → 實驗設計 → 結果討論）、狀態、里程碑與期限。卡住的時候把狀態改成「卡關」並寫下卡點，老師會在總覽看到紅字提醒。卡片會自動顯示該專案最近一次週報的日期與狀態。'
@@ -1359,8 +1443,129 @@ function viewHelp(){
       + '<div class="help-en">Each week: pick a status (On track / Behind / Blocked / Need discussion), link the update to one of your projects, then describe what you finished and where you are stuck. Build your plan by ticking items from your own checklist and project milestones. Plans are tracked continuously: unfinished items carry over to the next update until you tick them as finished, or press × to drop them (edit your plan). Modules stay in sync automatically: plan items reported finished check themselves off on your checklist; reporting Blocked marks the related project blocked with your note, and a later On-track report clears it. Entries form a timeline; going 9+ days without an update shows a red flag in the overview.</div></p>')
 
     + hc('📊','全實驗室總覽','Lab Overview',
-      '<p>老師視角：所有學生的檢核達成率、專案與卡關數、最新週報時間一覽無遺。紅字代表需要關注的地方。'
-      + '<div class="help-en">The PI view: every student’s checklist progress, project and blocked counts, and latest update at a glance. Red text marks items that need attention.</div></p>');
+      '<p>老師視角：所有學生的檢核達成率、必備技能狀況、專案與卡關數、最新週報時間一覽無遺。紅字代表需要關注的地方。「技能庫管理」可增減技能、設定必備與實驗模組；「檢核管理」可對單一學生指派檢核項與子項目。'
+      + '<div class="help-en">The PI view: every student’s checklist progress, core-skill status, project and blocked counts, and latest update at a glance. Use Skill Library to add/remove skills, set core flags and experiment modules; use Manage to assign per-student checks and sub-items.</div></p>');
+}
+
+/* ---------- skill library management（總覽 → 技能庫管理） ---------- */
+function skillRow(k){
+  const core = k.core ? '<span class="tmark core">★必備 core</span>' : '';
+  const dim = '<span class="tmark">'+DIMS[k.dim]+'</span>';
+  const tr = k.track ? '<span class="tmark">'+esc((TRACKS[k.track]||{}).short||k.track)+'</span>' : '';
+  return '<div class="lib-row'+(k.off?' off':'')+'">'
+    + '<div class="txt">'+esc(k.t)+core+dim+tr+(k.off?'<span class="tmark">已停用 off</span>':'')
+    + (k.en?'<span class="item-en">'+esc(k.en)+'</span>':'')+'</div>'
+    + '<div class="item-btns">'
+    + '<button class="ib" data-sedit="'+k.id+'" title="編輯 Edit">✎</button>'
+    + '<button class="ib" data-stog="'+k.id+'" title="'+(k.off?'重新啟用 Enable':'停用（不出現在任何清單）Disable')+'">'+(k.off?'⟳':'⏸')+'</button>'
+    + '<button class="ib del" data-sdel="'+k.id+'" title="刪除 Delete">×</button>'
+    + '</div></div>';
+}
+function viewSkillLib(){
+  let body='';
+  Object.keys(TIER_META).forEach(t=>{
+    const ks = S.skills.filter(k=>k.tier===t);
+    if(!ks.length) return;
+    body += '<div class="lib-sec"><span class="bar"></span>'+t+' '+TIER_META[t].name
+      +' <span class="dim-en">'+TIER_META[t].en+'</span></div>';
+    ks.forEach(k=>{ body += skillRow(k); });
+  });
+  S.modules.forEach(m=>{
+    const ks = S.skills.filter(k=>k.module===m.id);
+    body += '<div class="lib-sec"><span class="bar"></span>模組：'+esc(m.label)
+      +' <span class="dim-en">'+esc(m.en||'')+'</span></div>';
+    body += ks.length ? ks.map(skillRow).join('') : '<div class="hint">此模組還沒有技能，用「＋ 新增技能」加入。</div>';
+  });
+  return '<div class="section-head"><div><div class="eyebrow">Skill Library</div>'
+    + '<h2>技能庫管理 <span class="dim-en">Manage Skills</span></h2></div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    + '<button class="btn sm" id="libAddSkill">＋ 新增技能 Add skill</button>'
+    + '<button class="btn ghost sm" id="libAddMod">＋ 新增模組 Add module</button>'
+    + '<button class="btn ghost sm" id="libBack">← 回總覽 Back</button></div></div>'
+    + '<p class="hint">階段技能依學生年資（與領域）自動出現在其檢核清單；模組技能掛在專案上（專案編輯視窗勾選），參與該專案的學生才會看到。「★ 必備」計入升級門檻；上一階段未完成的必備會自動帶到下一階段。停用（⏸）的技能不出現在任何清單，勾選紀錄保留。<br>'
+    + 'Stage skills appear automatically by tier (and track); module skills attach to projects. ★ Core skills gate promotion and carry over between tiers. Disabled skills disappear from all lists but keep their records.</p>'
+    + body;
+}
+function bindSkillLib(){
+  $('#libBack').addEventListener('click', ()=>{ S.libOpen=false; render(); });
+  $('#libAddSkill').addEventListener('click', ()=>openSkillModal());
+  $('#libAddMod').addEventListener('click', openModModal);
+  document.querySelectorAll('[data-sedit]').forEach(b=>b.addEventListener('click', ()=>{
+    const k = S.skills.find(x=>x.id===b.dataset.sedit); if(k) openSkillModal(k);
+  }));
+  document.querySelectorAll('[data-stog]').forEach(b=>b.addEventListener('click', ()=>{
+    const k = S.skills.find(x=>x.id===b.dataset.stog); if(!k) return;
+    k.off = !k.off;
+    saveKey('lab_skills', S.skills, true); render();
+  }));
+  document.querySelectorAll('[data-sdel]').forEach(b=>b.addEventListener('click', ()=>{
+    if(!confirm('刪除這項技能？所有學生的清單都會移除它（已勾紀錄保留在資料中）。')) return;
+    S.skills = S.skills.filter(x=>x.id!==b.dataset.sdel);
+    saveKey('lab_skills', S.skills, true); render();
+  }));
+}
+function openSkillModal(existing){
+  const k = existing || {t:'', en:'', dim:'skill', track:'', tier:'U1', module:'', core:false};
+  const dimOpts = Object.keys(DIMS).map(d=>'<option value="'+d+'"'+(k.dim===d?' selected':'')+'>'+DIMS[d]+' '+DIMS_EN[d]+'</option>').join('');
+  const trackOpts = '<option value="">通用（所有人）General</option>'
+    + Object.keys(TRACKS).map(t=>'<option value="'+t+'"'+(k.track===t?' selected':'')+'>'+esc(TRACKS[t].label)+'</option>').join('');
+  const belongVal = k.module ? 'mod:'+k.module : 'tier:'+(k.tier||'U1');
+  const belongOpts = '<optgroup label="階段技能（依年資自動分配）Stage">'
+    + Object.keys(TIER_META).map(t=>{ const v='tier:'+t;
+        return '<option value="'+v+'"'+(belongVal===v?' selected':'')+'>'+t+' '+TIER_META[t].name+'</option>'; }).join('')
+    + '</optgroup><optgroup label="模組技能（掛在專案上）Module">'
+    + S.modules.map(m=>{ const v='mod:'+m.id;
+        return '<option value="'+v+'"'+(belongVal===v?' selected':'')+'>'+esc(m.label)+'</option>'; }).join('')
+    + '</optgroup>';
+  $('#modalRoot').innerHTML =
+    '<div class="scrim" id="scrim"><div class="modal">'
+    + '<h3>'+(existing?'編輯技能 <span class="dim-en">Edit skill</span>':'新增技能 <span class="dim-en">Add skill</span>')+'</h3>'
+    + '<div class="field"><label>技能內容 Description</label><textarea id="skText">'+esc(k.t)+'</textarea></div>'
+    + '<div class="field"><label>English（可留空 optional）</label><input id="skEn" value="'+esc(k.en||'')+'"></div>'
+    + '<div class="field"><label>維度 Dimension</label><select id="skDim">'+dimOpts+'</select></div>'
+    + '<div class="field"><label>領域 Track</label><select id="skTrack">'+trackOpts+'</select></div>'
+    + '<div class="field"><label>歸屬 Belongs to</label><select id="skBelong">'+belongOpts+'</select></div>'
+    + '<div class="field"><div class="track-pick"><div class="opt'+(k.core?' on':'')+'" id="skCore">★ 必備技能 Core（升級門檻）</div></div></div>'
+    + '<div class="modal-actions"><button class="btn ghost" id="skCancel">取消 Cancel</button>'
+    + '<button class="btn" id="skSave">儲存 Save</button></div></div></div>';
+  $('#scrim').addEventListener('click', e=>{ if(e.target.id==='scrim') closeModal(); });
+  $('#skCancel').addEventListener('click', closeModal);
+  $('#skCore').addEventListener('click', ()=>$('#skCore').classList.toggle('on'));
+  $('#skSave').addEventListener('click', ()=>{
+    const t = $('#skText').value.trim();
+    if(!t){ alert('請輸入技能內容'); return; }
+    const bel = $('#skBelong').value;
+    const rec = existing || {id:'sk-'+uid()};
+    rec.t = t;
+    rec.en = $('#skEn').value.trim();
+    rec.dim = $('#skDim').value;
+    rec.track = $('#skTrack').value;
+    rec.core = $('#skCore').classList.contains('on');
+    if(bel.slice(0,4)==='mod:'){ rec.module = bel.slice(4); rec.tier = ''; }
+    else { rec.tier = bel.slice(5); rec.module = ''; }
+    if(!existing) S.skills.push(rec);
+    saveKey('lab_skills', S.skills, true);
+    closeModal(); render();
+  });
+}
+function openModModal(){
+  $('#modalRoot').innerHTML =
+    '<div class="scrim" id="scrim"><div class="modal">'
+    + '<h3>新增技能模組 <span class="dim-en">Add module</span></h3>'
+    + '<div class="field"><label>模組名稱 Name</label><input id="mdName" placeholder="例：組織切片實驗"></div>'
+    + '<div class="field"><label>English（可留空 optional）</label><input id="mdEn"></div>'
+    + '<div class="hint">建立後用「＋ 新增技能」把技能歸到這個模組，再到專案編輯視窗勾選模組，參與者就會拿到這些技能。</div>'
+    + '<div class="modal-actions"><button class="btn ghost" id="mdCancel">取消 Cancel</button>'
+    + '<button class="btn" id="mdSave">新增 Add</button></div></div></div>';
+  $('#scrim').addEventListener('click', e=>{ if(e.target.id==='scrim') closeModal(); });
+  $('#mdCancel').addEventListener('click', closeModal);
+  $('#mdSave').addEventListener('click', ()=>{
+    const label = $('#mdName').value.trim();
+    if(!label){ alert('請輸入模組名稱'); return; }
+    S.modules.push({id:'mod-'+uid(), label, en:$('#mdEn').value.trim()});
+    saveKey('lab_skill_modules', S.modules, true);
+    closeModal(); render();
+  });
 }
 
 /* ---------------- modals ---------------- */
@@ -1448,7 +1653,7 @@ function openStudentModal(existing){
 }
 
 function openProjectModal(existing){
-  const p = existing || {name:'', stage:'文獻', status:'active', milestone:'', deadline:'', blocker:'', links:[]};
+  const p = existing || {name:'', stage:'文獻', status:'active', milestone:'', deadline:'', blocker:'', links:[], modules:[]};
   const stageOpts = STAGES.map(s=>'<option value="'+s+'"'+(p.stage===s?' selected':'')+'>'+s+' '+STAGE_EN[s]+'</option>').join('');
   const statusOpts = Object.keys(STATUS).map(k=>'<option value="'+k+'"'+(p.status===k?' selected':'')+'>'+STATUS[k].label+' '+STATUS[k].en+'</option>').join('');
   const linkVal = (p.links&&p.links[0])?p.links[0].url:'';
@@ -1462,11 +1667,17 @@ function openProjectModal(existing){
     + '<div class="field"><label>期限 Deadline</label><input type="date" id="pDead" value="'+esc(p.deadline)+'"></div>'
     + '<div class="field"><label>卡點（可留空）Blocker (optional)</label><textarea id="pBlock" placeholder="目前卡在哪">'+esc(p.blocker)+'</textarea></div>'
     + '<div class="field"><label>成果連結（Drive／GitHub，可留空）Link (optional)</label><input id="pLink" value="'+esc(linkVal)+'" placeholder="https://…"></div>'
+    + (S.modules.length
+      ? '<div class="field"><label>需要的技能模組（可多選）Skill modules</label><div class="track-pick" id="pMods">'
+        + S.modules.map(m=>'<div class="opt'+((p.modules||[]).includes(m.id)?' on':'')+'" data-mod="'+m.id+'">'+esc(m.label)+(m.en?' <span class="dim-en">'+esc(m.en)+'</span>':'')+'</div>').join('')
+        + '</div><div class="hint">勾選後，此專案擁有者的檢核清單會自動出現模組內的技能。Owners of this project automatically get the module\'s skills on their checklist.</div></div>'
+      : '')
     + '<div class="modal-actions"><button class="btn ghost" id="pCancel">取消 Cancel</button>'
     + '<button class="btn" id="pSave">儲存 Save</button></div></div></div>';
 
   $('#scrim').addEventListener('click', e=>{ if(e.target.id==='scrim') closeModal(); });
   $('#pCancel').addEventListener('click', closeModal);
+  document.querySelectorAll('#pMods .opt').forEach(o=>o.addEventListener('click', ()=>o.classList.toggle('on')));
   $('#pSave').addEventListener('click', ()=>{
     const name=$('#pName').value.trim();
     if(!name){ alert('請輸入專案名稱'); return; }
@@ -1475,7 +1686,8 @@ function openProjectModal(existing){
       name, stage:$('#pStage').value, status:$('#pStatus').value,
       milestone:$('#pMile').value.trim(), deadline:$('#pDead').value,
       blocker:$('#pBlock').value.trim(),
-      links: link?[{name:'成果', url:link}]:[]
+      links: link?[{name:'成果', url:link}]:[],
+      modules: [...document.querySelectorAll('#pMods .opt.on')].map(o=>o.dataset.mod)
     };
     let rec;
     if(existing){ Object.assign(existing, data); rec=existing; }
@@ -1535,7 +1747,7 @@ async function exportData(targetSid){
       const v = itemVal(s.id, it, st);
       ckRows.push({學生:s.name, 維度:DIMS[it.dim], 檢核項:it.t,
         English:it.en||'', 狀態:v===1?'完成':(v>0?Math.round(v*100)+'%':'未完成'),
-        自訂:it.custom?'是':'', 教授指定:it.pi?'是':'',
+        必備:it.core?'★':'', 自訂:it.custom?'是':'', 教授指定:it.pi?'是':'',
         子項:subsOf(s.id, it.id).map(sb=>(st[sb.id]?'☑':'☐')+sb.t).join('；')});
     });
   });
